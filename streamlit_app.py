@@ -2,6 +2,7 @@ import streamlit as st
 from snowflake.snowpark import Session
 import base64
 from pathlib import Path
+import cryptography.hazmat.primitives.serialization as serialization
 
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DO STREAMLIT
@@ -28,12 +29,18 @@ CONN_PARAMS = {
 # ---------------------------------------------------------
 def get_private_key():
     key_path = Path(CONN_PARAMS["private_key_path"])
-    if not key_path.exists():
-        st.error(f"Arquivo de chave não encontrado: {key_path}")
-        st.stop()
-    with open(key_path, "r") as f:
-        key = f.read()
-    return key
+    with open(key_path, "rb") as key_file:
+        p_key = serialization.load_pem_private_key(
+            key_file.read(),
+            password=None,
+        )
+    private_key = p_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    private_key_b64 = base64.b64encode(private_key).decode("utf-8")
+    return private_key_b64
 
 # ---------------------------------------------------------
 # FUNÇÃO DE CONEXÃO COM SNOWFLAKE
@@ -49,10 +56,9 @@ def get_session():
         "database": CONN_PARAMS["database"],
         "schema": CONN_PARAMS["schema"],
         "private_key": private_key,
+        "authenticator": "SNOWFLAKE_JWT",
     }).create()
     return session
-
-session = get_session()
 
 # ---------------------------------------------------------
 # AGENTES DISPONÍVEIS
