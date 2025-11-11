@@ -1,69 +1,104 @@
 import streamlit as st
 import base64
+import time
+import jwt
+import hashlib
 from snowflake.snowpark import Session
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
 
 # ---------------------------------------------------------
-# CONFIGURAÇÃO DO STREAMLIT
+# CONFIGURAÇÃO DO APP
 # ---------------------------------------------------------
 st.set_page_config(page_title="Chat AI - Snowflake Cortex", page_icon="❄️", layout="wide")
 st.title("🤖 Chat com Agentes de IA - Snowflake Cortex")
 
-# ---------------------------------------------------------
-# PARÂMETROS DE CONEXÃO
-# ---------------------------------------------------------
-CONN_PARAMS = {
-    "account": "A6108453355571-ALMEIDAJR",
-    "user": "TEAMS_INTEGRATION",
-    "role": "SYSADMIN",
-    "warehouse": "AJ_AGENTE_IA_WH_XS",
-    "database": "AJ_DATALAKEHOUSE_VS",
-    "schema": "SILVER",
-}
+ACCOUNT = "A6108453355571-ALMEIDAJR"
+USER = "TEAMS_INTEGRATION"
+ROLE = "SYSADMIN"
+WAREHOUSE = "AJ_AGENTE_IA_WH_XS"
+DATABASE = "AJ_DATALAKEHOUSE_VS"
+SCHEMA = "SILVER"
+RSA_KEY_PATH = "rsa_key.p8"
 
 # ---------------------------------------------------------
-# LER CHAVE PRIVADA DO st.secrets
+# GERADOR DE JWT (baseado na sua versão Node)
 # ---------------------------------------------------------
-def get_private_key():
-    try:
-        pem_key = st.secrets["rsa"]["private_key"].encode()
-        p_key = serialization.load_pem_private_key(pem_key, password=None)
-        private_key = p_key.private_bytes(
-            encoding=serialization.Encoding.DER,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
+class JWTGenerator:
+    def __init__(self, account, user, key_path):
+        self.account = self._prepare_account_name(account)
+        self.user = user.upper()
+        self.qualified_username = f"{self.account}.{self.user}"
+        self.lifetime = 3600  # 1 hora
+        self.renewal_delay = self.lifetime - 300  # renova 5min antes
+        self.private_key_pem = open(key_path, "rb").read()
+        self.private_key = serialization.load_pem_private_key(
+            self.private_key_pem, password=None, backend=default_backend()
         )
-        return base64.b64encode(private_key).decode("utf-8")
-    except Exception as e:
-        st.error(f"Erro ao ler a chave privada: {e}")
-        st.stop()
+        self.public_fingerprint = self._calculate_public_key_fingerprint()
+        self.token = None
+        self.renew_time = 0
+        self.generate_token()
+
+    def _prepare_account_name(self, raw_account):
+        if ".global" in raw_account:
+            return raw_account.split("-")[0].upper()
+        return raw_account.split(".")[0].upper()
+
+    def _calculate_public_key_fingerprint(self):
+        public_key = self.private_key.public_key()
+        der_public_key = public_key.public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        sha256_digest = hashlib.sha256(der_public_key).digest()
+        fingerprint = f"SHA256:{base64.b64encode(sha256_digest).decode('utf-8')}"
+        return fingerprint
+
+    def generate_token(self):
+        now = int(time.time())
+        payload = {
+            "iss": f"{self.qualified_username}.{self.public_fingerprint}",
+            "sub": self.qualified_username,
+            "iat": now,
+            "exp": now + self.lifetime,
+        }
+        self.token = jwt.encode(payload, self.private_key_pem, algorithm="RS256")
+        self.renew_time = now + self.renewal_delay
+        return self.token
+
+    def get_token(self):
+        now = int(time.time())
+        if now >= self.renew_time:
+            print("♻️ Regenerando JWT...")
+            self.generate_token()
+        return self.token
+
 
 # ---------------------------------------------------------
 # CRIAR SESSÃO SNOWFLAKE
 # ---------------------------------------------------------
 @st.cache_resource
 def get_session():
-    try:
-        private_key = get_private_key()
-        session = Session.builder.configs({
-            "account": CONN_PARAMS["account"],
-            "user": CONN_PARAMS["user"],
-            "role": CONN_PARAMS["role"],
-            "warehouse": CONN_PARAMS["warehouse"],
-            "database": CONN_PARAMS["database"],
-            "schema": CONN_PARAMS["schema"],
-            "private_key": private_key,
-            "authenticator": "SNOWFLAKE_JWT",
-        }).create()
-        return session
-    except Exception as e:
-        st.error(f"❌ Falha ao conectar ao Snowflake: {e}")
-        st.stop()
+    jwt_gen = JWTGenerator(ACCOUNT, USER, RSA_KEY_PATH)
+    token = jwt_gen.get_token()
+    session = Session.builder.configs({
+        "account": ACCOUNT,
+        "user": USER,
+        "authenticator": "JWT",
+        "token": token,
+        "role": ROLE,
+        "warehouse": WAREHOUSE,
+        "database": DATABASE,
+        "schema": SCHEMA,
+    }).create()
+    return session, jwt_gen
 
-session = get_session()
+
+session, jwt_gen = get_session()
 
 # ---------------------------------------------------------
-# AGENTES DISPONÍVEIS
+# LISTA DE AGENTES
 # ---------------------------------------------------------
 agents = {
     "📑 Jurídico (Contratos)": "AJ_JURIDICO_CONTRATOS",
@@ -79,12 +114,12 @@ st.sidebar.header("⚙️ Configurações")
 selected_agent = st.sidebar.selectbox("Selecione o agente de IA:", list(agents.keys()))
 agent_name = agents[selected_agent]
 st.sidebar.markdown("---")
-st.sidebar.write(f"**Warehouse:** {CONN_PARAMS['warehouse']}")
-st.sidebar.write(f"**Role:** {CONN_PARAMS['role']}")
-st.sidebar.write(f"**Usuário:** {CONN_PARAMS['user']}")
+st.sidebar.write(f"**Usuário:** {USER}")
+st.sidebar.write(f"**Warehouse:** {WAREHOUSE}")
+st.sidebar.write(f"**Role:** {ROLE}")
 
 # ---------------------------------------------------------
-# HISTÓRICO DE CONVERSA
+# HISTÓRICO DE CHAT
 # ---------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -103,6 +138,18 @@ if prompt:
 
     with st.spinner(f"Consultando agente {agent_name}..."):
         try:
+            token = jwt_gen.get_token()  # garante renovação automática
+            session = Session.builder.configs({
+                "account": ACCOUNT,
+                "user": USER,
+                "authenticator": "JWT",
+                "token": token,
+                "role": ROLE,
+                "warehouse": WAREHOUSE,
+                "database": DATABASE,
+                "schema": SCHEMA,
+            }).create()
+
             query = f"""
                 SELECT SNOWFLAKE.CORTEX.COMPLETE(
                     '{agent_name}',
