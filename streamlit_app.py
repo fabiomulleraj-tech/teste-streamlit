@@ -82,20 +82,18 @@ class JWTGenerator:
 def get_session():
     jwt_gen = JWTGenerator(ACCOUNT, USER, RSA_KEY_PATH)
     token = jwt_gen.get_token()
+
     session = Session.builder.configs({
-        "account": ACCOUNT,
-        "user": USER,
-        "authenticator": "JWT",
-        "token": token,
+        "account": ACCOUNT.split(".")[0],  # <- sem .snowflakecomputing.com
+        "user": USER.upper(),
+        "authenticator": "SNOWFLAKE_JWT",  # <- valor correto!
+        "token": token if isinstance(token, str) else token.decode(),
         "role": ROLE,
         "warehouse": WAREHOUSE,
         "database": DATABASE,
         "schema": SCHEMA,
     }).create()
     return session, jwt_gen
-
-
-session, jwt_gen = get_session()
 
 # ---------------------------------------------------------
 # LISTA DE AGENTES
