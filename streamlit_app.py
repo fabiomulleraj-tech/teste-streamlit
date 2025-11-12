@@ -23,41 +23,35 @@ SCHEMA = "SILVER"
 RSA_KEY_PATH = "rsa_key.p8"
 
 # ---------------------------------------------------------
-# GERADOR DE JWT
+# GERADOR DE JWT (VERSÃO FINAL)
 # ---------------------------------------------------------
 class JWTGenerator:
     def __init__(self, account, user, key_path=None):
         self.account = self._prepare_account_name(account)
         self.user = user.upper()
         self.qualified_username = f"{self.account}.{self.user}"
-        self.lifetime = 3600
-        self.renewal_delay = self.lifetime - 300
+        self.lifetime = 3600  # 1h
+        self.renewal_delay = self.lifetime - 300  # renova 5 min antes
         self.token = None
         self.renew_time = 0
 
         # 🔑 tenta carregar a chave do secrets primeiro
         if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
             key_text = st.secrets["rsa"]["private_key"]
-
-            # 🧹 Normaliza quebras de linha e remove caracteres ocultos
             key_text = key_text.replace("\r", "").replace("\\n", "\n").strip()
             key_text = "\n".join(line.strip() for line in key_text.splitlines() if line.strip())
-
-            # 🔒 Garante delimitadores válidos
             if not key_text.startswith("-----BEGIN PRIVATE KEY-----"):
                 key_text = "-----BEGIN PRIVATE KEY-----\n" + key_text
             if not key_text.endswith("-----END PRIVATE KEY-----"):
                 key_text = key_text + "\n-----END PRIVATE KEY-----"
-
-            # 🔧 Converte para bytes limpos e força UTF-8 sem BOM
             self.private_key_pem = key_text.encode("utf-8").strip()
             st.sidebar.success("🔐 Chave carregada do st.secrets")
+        elif key_path:
+            self.private_key_pem = open(key_path, "rb").read()
+            st.sidebar.info(f"🔑 Chave lida de arquivo: {key_path}")
         else:
             raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
 
-        # ----------------------------- #
-        # Decodifica chave PEM em objeto
-        # ----------------------------- #
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.backends import default_backend
 
@@ -67,8 +61,6 @@ class JWTGenerator:
                 password=None,
                 backend=default_backend()
             )
-
-            # 🔎 Verifica se realmente carregou um objeto válido
             if self.private_key is None:
                 raise ValueError("load_pem_private_key retornou None — formato PEM inválido.")
             else:
@@ -77,8 +69,7 @@ class JWTGenerator:
             st.error(f"Erro ao decodificar chave privada: {e}")
             raise
 
-
-        # Calcula fingerprint
+        # Calcula fingerprint da chave pública
         import hashlib, base64
         public_key = self.private_key.public_key()
         der_pub = public_key.public_bytes(
@@ -88,45 +79,52 @@ class JWTGenerator:
         sha256_digest = hashlib.sha256(der_pub).digest()
         self.public_fingerprint = f"SHA256:{base64.b64encode(sha256_digest).decode('utf-8')}"
 
-        # Gera token inicial
+        # Gera o primeiro token
         self.generate_token()
 
-    # 🔧 método auxiliar
+    # ------------------------------------------
+    # Normaliza o nome da conta
+    # ------------------------------------------
     def _prepare_account_name(self, raw_account):
         if ".global" in raw_account:
             return raw_account.split("-")[0].upper()
         return raw_account.split(".")[0].upper()
 
-        def generate_token(self):
-            import time, jwt
-            now = int(time.time())
+    # ------------------------------------------
+    # GERAÇÃO DO JWT
+    # ------------------------------------------
+    def generate_token(self):
+        import time, jwt
+        now = int(time.time())
 
-            payload = {
-                "iss": f"{self.qualified_username}.{self.public_fingerprint}",
-                "sub": self.qualified_username,
-                "iat": now,
-                "exp": now + self.lifetime,
-            }
+        payload = {
+            "iss": f"{self.qualified_username}.{self.public_fingerprint}",
+            "sub": self.qualified_username,
+            "iat": now,
+            "exp": now + self.lifetime,
+        }
 
-            # 🔧 garante que a chave seja uma STRING PEM válida
-            key_str = self.private_key_pem.decode("utf-8").strip()
-            if not key_str.startswith("-----BEGIN"):
-                raise ValueError("Formato da chave inválido — PEM ausente.")
+        # PyJWT 2.10+ exige string PEM, não bytes
+        key_str = self.private_key_pem.decode("utf-8").strip()
+        if not key_str.startswith("-----BEGIN"):
+            raise ValueError("Formato da chave inválido — PEM ausente.")
 
-            # 🧾 gera o JWT assinado (PyJWT requer string PEM)
-            self.token = jwt.encode(payload, key_str, algorithm="RS256")
+        self.token = jwt.encode(payload, key_str, algorithm="RS256")
+        self.renew_time = now + self.renewal_delay
+        st.sidebar.success("✅ JWT gerado com sucesso.")
+        return self.token
 
-            self.renew_time = now + self.renewal_delay
-            st.sidebar.success("✅ JWT gerado com sucesso.")
-            return self.token
-
-
+    # ------------------------------------------
+    # RENOVAÇÃO DO JWT AUTOMÁTICA
+    # ------------------------------------------
     def get_token(self):
+        import time
         now = int(time.time())
         if now >= self.renew_time:
             st.sidebar.warning("♻️ Regenerando JWT...")
             self.generate_token()
         return self.token
+
 
 
 # ---------------------------------------------------------
