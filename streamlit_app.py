@@ -69,26 +69,25 @@ class JWTGenerator:
         return raw_account.split(".")[0].upper()
 
     def generate_token(self):
-    import time, jwt
-    now = int(time.time())
+        import time, jwt
+        now = int(time.time())
 
-    payload = {
-        "iss": f"{self.qualified_username}.{self.public_fingerprint}",
-        "sub": self.qualified_username,
-        "iat": now,
-        "exp": now + self.lifetime,
-    }
+        payload = {
+            "iss": f"{self.qualified_username}.{self.public_fingerprint}",
+            "sub": self.qualified_username,
+            "iat": now,
+            "exp": now + self.lifetime,
+        }
 
-    # 🔧 garante que a chave seja um objeto RSAPrivateKey
-    private_key_obj = self.private_key
-    if private_key_obj is None:
-        raise ValueError("Private key object is None — verifique se foi carregada corretamente.")
+        # 🔧 garante que a chave seja um objeto RSAPrivateKey válido
+        private_key_obj = self.private_key
+        if private_key_obj is None:
+            raise ValueError("Private key object is None — verifique se foi carregada corretamente.")
 
-    # 🧾 gera o JWT assinado
-    self.token = jwt.encode(payload, private_key_obj, algorithm="RS256")
-    self.renew_time = now + self.renewal_delay
-    return self.token
-
+        # 🧾 gera o JWT assinado
+        self.token = jwt.encode(payload, private_key_obj, algorithm="RS256")
+        self.renew_time = now + self.renewal_delay
+        return self.token
 
     def get_token(self):
         import time
