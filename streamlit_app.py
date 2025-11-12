@@ -119,6 +119,11 @@ else:
     except Exception:
         st.warning("⚠️ Sessão expirada. Recriando conexão...")
         session = create_session()
+if "jwt_gen" in st.session_state:
+    jwt_gen = st.session_state.jwt_gen
+    st.sidebar.markdown("### 🔐 Status do Token")
+    st.sidebar.write(f"Fingerprint: `{jwt_gen.public_fingerprint[:40]}...`")
+    st.sidebar.write(f"Renovação em: {time.strftime('%H:%M:%S', time.localtime(jwt_gen.renew_time))}")
 
 # ---------------------------------------------------------
 # LISTA DE AGENTES
