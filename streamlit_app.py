@@ -181,7 +181,7 @@ jwt_token = jwt_gen.get_token()
 # SIDEBAR - seleção de agente
 # ---------------------------------------------------------
 st.sidebar.header("⚙️ Selecione o agente")
-selected_agent = st.sidebar.selectbox(list(AGENTS.keys()))
+selected_agent = st.sidebar.selectbox("", list(AGENTS.keys()))
 agent_cfg = AGENTS[selected_agent]
 agent_name = agent_cfg["agent"]
 semantic_model = agent_cfg["semantic_model"]
