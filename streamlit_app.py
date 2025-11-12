@@ -136,7 +136,7 @@ class JWTGenerator:
 # ---------------------------------------------------------
 # STREAMING DE RESPOSTAS DO CORTEX (tipo "Thinking steps")
 # ---------------------------------------------------------
-def send_prompt_to_cortex(prompt, agent, jwt_token):
+def send_prompt_to_cortex(prompt, agent, jwt_token, debug=False):
     url = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents/{agent}:run"
     headers = {
         "Authorization": f"Bearer {jwt_token}",
@@ -155,9 +155,21 @@ def send_prompt_to_cortex(prompt, agent, jwt_token):
         ]
     }
 
+    # 🔍 Mostra detalhes de requisição no modo debug
+    if debug:
+        with st.expander("🧩 DEBUG REQUEST", expanded=False):
+            st.write("**URL:**", url)
+            st.json(headers)
+            st.json(body)
+            st.code(jwt_token, language="bash")
+
     try:
         with requests.post(url, headers=headers, json=body, stream=True, timeout=180) as resp:
             if resp.status_code != 200:
+                if debug:
+                    with st.expander("❌ DEBUG RESPONSE", expanded=True):
+                        st.write("**Status:**", resp.status_code)
+                        st.text(resp.text)
                 return f"⚠️ Erro HTTP {resp.status_code}: {resp.text}"
 
             full_text = ""
@@ -183,15 +195,28 @@ def send_prompt_to_cortex(prompt, agent, jwt_token):
                         if "output" in data:
                             full_text += data["output"].get("text", "")
                             chat_box.markdown(full_text)
+
+                        # 🔍 exibe eventos SSE no modo debug
+                        if debug:
+                            with st.expander("📡 DEBUG SSE EVENT", expanded=False):
+                                st.json(data)
+
                 except Exception as e:
-                    st.sidebar.warning(f"⚠️ Falha ao processar chunk SSE: {e}")
+                    if debug:
+                        st.sidebar.warning(f"⚠️ Falha ao processar chunk SSE: {e}")
 
             thinking_box.empty()
+
+            if debug:
+                with st.expander("✅ DEBUG FINAL OUTPUT", expanded=True):
+                    st.write(full_text)
+
             return full_text.strip() or "⚠️ Nenhum conteúdo retornado."
 
     except Exception as e:
+        if debug:
+            st.sidebar.error(f"❌ Erro no streaming SSE: {e}")
         return f"❌ Erro ao consultar o agente: {e}"
-
 
 # ---------------------------------------------------------
 # INICIALIZA JWT E CHAT
