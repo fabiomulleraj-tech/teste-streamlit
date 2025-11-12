@@ -10,6 +10,7 @@ from cryptography.hazmat.backends import default_backend
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DO APP
 # ---------------------------------------------------------
+st.sidebar.write("DEBUG KEY LENGTH:", len(st.secrets["rsa"]["private_key"]))
 st.set_page_config(page_title="Chat AI - Snowflake Cortex", page_icon="❄️", layout="wide")
 st.title("🤖 Chat com Agentes de IA - Snowflake Cortex")
 
@@ -35,29 +36,41 @@ class JWTGenerator:
         self.renew_time = 0
 
         # 🔑 tenta carregar a chave do secrets primeiro
-        if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
-            key_text = st.secrets["rsa"]["private_key"]
-            key_text = key_text.replace("\\n", "\n").strip()
-            if not key_text.startswith("-----BEGIN"):
-                key_text = "-----BEGIN PRIVATE KEY-----\n" + key_text
-            if not key_text.endswith("-----END PRIVATE KEY-----"):
-                key_text = key_text + "\n-----END PRIVATE KEY-----"
-            self.private_key_pem = key_text.encode()
-            st.sidebar.success("🔐 Chave carregada do st.secrets")
-        elif key_path:
-            self.private_key_pem = open(key_path, "rb").read()
-            st.sidebar.info(f"🔑 Chave lida de arquivo: {key_path}")
-        else:
-            raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
+    if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
+        key_text = st.secrets["rsa"]["private_key"]
 
-        # Carrega a chave RSA
-        try:
-            self.private_key = serialization.load_pem_private_key(
-                self.private_key_pem, password=None, backend=default_backend()
-            )
-        except Exception as e:
-            st.error(f"Erro ao decodificar chave privada: {e}")
-            raise
+        # Normaliza possíveis quebras escapadas
+        key_text = key_text.replace("\\n", "\n").strip()
+        # Remove espaços ocultos
+        key_text = "\n".join(line.strip() for line in key_text.splitlines() if line.strip())
+        # Garante delimitadores corretos
+        if not key_text.startswith("-----BEGIN PRIVATE KEY-----"):
+            key_text = "-----BEGIN PRIVATE KEY-----\n" + key_text
+        if not key_text.endswith("-----END PRIVATE KEY-----"):
+            key_text = key_text + "\n-----END PRIVATE KEY-----"
+
+        self.private_key_pem = key_text.encode("utf-8")
+        st.sidebar.success("🔐 Chave carregada do st.secrets")
+    else:
+        raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
+
+    # ----------------------------- #
+    # Agora tenta carregar de fato
+    # ----------------------------- #
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.backends import default_backend
+
+    try:
+        self.private_key = serialization.load_pem_private_key(
+            self.private_key_pem,
+            password=None,
+            backend=default_backend(),
+        )
+        if self.private_key is None:
+            raise ValueError("serialization retornou None — chave inválida.")
+    except Exception as e:
+        st.error(f"❌ Erro ao decodificar chave privada: {e}")
+        raise
 
         # Calcula fingerprint da chave pública
         public_key = self.private_key.public_key()
@@ -91,7 +104,7 @@ class JWTGenerator:
         if private_key_obj is None:
             raise ValueError("Chave privada inválida.")
 
-        self.token = jwt.encode(payload, private_key_obj, algorithm="RS256")
+        self.token = jwt.encode(payload, self.private_key, algorithm="RS256")
         self.renew_time = now + self.renewal_delay
         return self.token
 
