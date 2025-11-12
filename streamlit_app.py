@@ -138,10 +138,15 @@ def send_prompt_to_cortex(prompt, model, agent, semantic_model, jwt_token):
     headers = {"Authorization": f"Bearer {jwt_token}"}
     url = f"{ENDPOINT}/{agent}:run"
 
-    # ❗ Formato correto esperado pela API Snowflake Cortex
+    # ✅ Estrutura idêntica à usada no TeamsBot.js
     body = {
         "messages": [
-            {"role": "user", "content": prompt}
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt}
+                ]
+            }
         ],
         "model": model,
         "parameters": {
