@@ -62,13 +62,16 @@ class JWTGenerator:
             return key_text
         raise ValueError("❌ Nenhuma chave RSA encontrada no st.secrets")
 
-    def _calc_fingerprint(self):
-        public_key = self.private_key.public_key().public_bytes(
-            encoding=serialization.Encoding.DER,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    def _calculate_public_key_fingerprint(self):
+        public_key = serialization.load_pem_private_key(
+            self.private_key_pem, password=None, backend=default_backend()
+        ).public_key()
+        der = public_key.public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo
         )
-        sha256_digest = hashlib.sha256(public_key).digest()
-        return f"SHA256:{base64.b64encode(sha256_digest).decode()}"
+        return f"SHA256:{base64.b64encode(hashlib.sha256(der).digest()).decode()}"
+
     
     def _prepare_account_name(self, raw_account):
         return raw_account.split("-")[0].split(".")[0].upper()
