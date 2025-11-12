@@ -37,17 +37,52 @@ ENDPOINT = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE
 # ---------------------------------------------------------
 class JWTGenerator:
     def __init__(self, account, user, key_path=None):
-        ...
         self.account = self._prepare_account_name(account)
         self.user = user.upper()
         self.qualified_username = f"{self.account}.{self.user}"
-        ...
+        self.lifetime = 3600  # 1 hora
+        self.renewal_delay = self.lifetime - 300  # renova 5 min antes
+
+        # ---------------------------------------------------------
+        # 1️⃣ Carrega a chave privada (do st.secrets ou de arquivo)
+        # ---------------------------------------------------------
+        key_text = None
+
+        # 🔹 Preferência: st.secrets["rsa"]["private_key"]
+        if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
+            key_text = st.secrets["rsa"]["private_key"]
+            key_text = key_text.replace("\\n", "\n").strip()
+            if not key_text.startswith("-----BEGIN"):
+                key_text = "-----BEGIN PRIVATE KEY-----\n" + key_text
+            if not key_text.endswith("-----END PRIVATE KEY-----"):
+                key_text += "\n-----END PRIVATE KEY-----"
+            st.sidebar.success("🔐 Chave carregada do st.secrets")
+
+        # 🔹 Alternativa: arquivo físico (rsa_key.p8)
+        elif key_path:
+            with open(key_path, "r") as f:
+                key_text = f.read()
+            st.sidebar.info(f"🔑 Chave lida do arquivo: {key_path}")
+
+        # 🔹 Nenhuma chave encontrada
+        else:
+            raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
+
+        # ---------------------------------------------------------
+        # 2️⃣ Converte e carrega a chave privada
+        # ---------------------------------------------------------
         self.private_key_pem = key_text.encode("utf-8")
         self.private_key = serialization.load_pem_private_key(
             self.private_key_pem, password=None, backend=default_backend()
         )
+        st.sidebar.success("✅ Chave privada decodificada com sucesso.")
+
+        # ---------------------------------------------------------
+        # 3️⃣ Calcula fingerprint e gera token inicial
+        # ---------------------------------------------------------
         self.public_fingerprint = self._calc_fingerprint()
         self.generate_token()
+
 
     def _prepare_account_name(self, raw_account):
         return raw_account.split("-")[0].split(".")[0].upper()
