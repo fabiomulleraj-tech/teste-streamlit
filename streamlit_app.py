@@ -212,7 +212,7 @@ if prompt:
     st.chat_message("user").write(prompt)
 
     with st.spinner(f"Consultando agente {selected_agent}..."):
-        resposta = send_prompt_to_cortex(prompt, MODEL, agent_name, semantic_model, jwt_token)
+        resposta = send_prompt_to_cortex(prompt, agent_name, jwt_token)
 
     st.chat_message("assistant").write(resposta)
     st.session_state.messages.append({"role": "assistant", "content": resposta})
