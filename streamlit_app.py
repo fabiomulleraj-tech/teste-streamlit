@@ -108,12 +108,12 @@ class JWTGenerator:
                 "exp": now + self.lifetime,
             }
 
-            # 🔧 garante que a chave seja uma STRING PEM válida (não bytes, nem objeto)
+            # 🔧 garante que a chave seja uma STRING PEM válida
             key_str = self.private_key_pem.decode("utf-8").strip()
             if not key_str.startswith("-----BEGIN"):
                 raise ValueError("Formato da chave inválido — PEM ausente.")
 
-            # 🧾 gera o JWT assinado
+            # 🧾 gera o JWT assinado (PyJWT requer string PEM)
             self.token = jwt.encode(payload, key_str, algorithm="RS256")
 
             self.renew_time = now + self.renewal_delay
