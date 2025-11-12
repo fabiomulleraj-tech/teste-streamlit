@@ -111,7 +111,7 @@ class JWTGenerator:
         if private_key_obj is None:
             raise ValueError("Chave privada inválida.")
 
-        self.token = jwt.encode(payload, self.private_key, algorithm="RS256")
+        self.token = jwt.encode(payload, self.private_key_pem, algorithm="RS256")
         self.renew_time = now + self.renewal_delay
         return self.token
 
