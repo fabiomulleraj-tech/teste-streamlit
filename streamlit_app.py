@@ -22,7 +22,7 @@ SCHEMA = "SILVER"
 RSA_KEY_PATH = "rsa_key.p8"
 
 # ---------------------------------------------------------
-# GERADOR DE JWT (corrigido para usar st.secrets)
+# GERADOR DE JWT (corrigido e completo)
 # ---------------------------------------------------------
 class JWTGenerator:
     def __init__(self, account, user, key_path=None):
@@ -61,6 +61,33 @@ class JWTGenerator:
         self.token = None
         self.renew_time = 0
         self.generate_token()
+
+    # 🔧 método que estava faltando
+    def _prepare_account_name(self, raw_account):
+        if ".global" in raw_account:
+            return raw_account.split("-")[0].upper()
+        return raw_account.split(".")[0].upper()
+
+    def generate_token(self):
+        import time, jwt
+        now = int(time.time())
+        payload = {
+            "iss": f"{self.qualified_username}.{self.public_fingerprint}",
+            "sub": self.qualified_username,
+            "iat": now,
+            "exp": now + self.lifetime,
+        }
+        self.token = jwt.encode(payload, self.private_key_pem, algorithm="RS256")
+        self.renew_time = now + self.renewal_delay
+        return self.token
+
+    def get_token(self):
+        import time
+        now = int(time.time())
+        if now >= self.renew_time:
+            st.sidebar.warning("♻️ Regenerando JWT...")
+            self.generate_token()
+        return self.token
 
 
 # ---------------------------------------------------------
