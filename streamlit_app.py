@@ -30,49 +30,40 @@ class JWTGenerator:
         self.account = self._prepare_account_name(account)
         self.user = user.upper()
         self.qualified_username = f"{self.account}.{self.user}"
-        self.lifetime = 3600  # 1 hora
-        self.renewal_delay = self.lifetime - 300  # renova 5 min antes
+        self.lifetime = 3600
+        self.renewal_delay = self.lifetime - 300
         self.token = None
         self.renew_time = 0
 
         # 🔑 tenta carregar a chave do secrets primeiro
-    if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
-        key_text = st.secrets["rsa"]["private_key"]
+        if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
+            key_text = st.secrets["rsa"]["private_key"]
+            key_text = key_text.replace("\\n", "\n").strip()
+            key_text = "\n".join(line.strip() for line in key_text.splitlines() if line.strip())
+            if not key_text.startswith("-----BEGIN PRIVATE KEY-----"):
+                key_text = "-----BEGIN PRIVATE KEY-----\n" + key_text
+            if not key_text.endswith("-----END PRIVATE KEY-----"):
+                key_text = key_text + "\n-----END PRIVATE KEY-----"
+            self.private_key_pem = key_text.encode("utf-8")
+            st.sidebar.success("🔐 Chave carregada do st.secrets")
+        else:
+            raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
 
-        # Normaliza possíveis quebras escapadas
-        key_text = key_text.replace("\\n", "\n").strip()
-        # Remove espaços ocultos
-        key_text = "\n".join(line.strip() for line in key_text.splitlines() if line.strip())
-        # Garante delimitadores corretos
-        if not key_text.startswith("-----BEGIN PRIVATE KEY-----"):
-            key_text = "-----BEGIN PRIVATE KEY-----\n" + key_text
-        if not key_text.endswith("-----END PRIVATE KEY-----"):
-            key_text = key_text + "\n-----END PRIVATE KEY-----"
+        # Decodifica chave PEM
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.backends import default_backend
+        try:
+            self.private_key = serialization.load_pem_private_key(
+                self.private_key_pem,
+                password=None,
+                backend=default_backend(),
+            )
+        except Exception as e:
+            st.error(f"Erro ao decodificar chave privada: {e}")
+            raise
 
-        self.private_key_pem = key_text.encode("utf-8")
-        st.sidebar.success("🔐 Chave carregada do st.secrets")
-    else:
-        raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
-
-    # ----------------------------- #
-    # Agora tenta carregar de fato
-    # ----------------------------- #
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.backends import default_backend
-
-    try:
-        self.private_key = serialization.load_pem_private_key(
-            self.private_key_pem,
-            password=None,
-            backend=default_backend(),
-        )
-        if self.private_key is None:
-            raise ValueError("serialization retornou None — chave inválida.")
-    except Exception as e:
-        st.error(f"❌ Erro ao decodificar chave privada: {e}")
-        raise
-
-        # Calcula fingerprint da chave pública
+        # Calcula fingerprint
+        import hashlib, base64
         public_key = self.private_key.public_key()
         der_pub = public_key.public_bytes(
             encoding=serialization.Encoding.DER,
@@ -81,7 +72,7 @@ class JWTGenerator:
         sha256_digest = hashlib.sha256(der_pub).digest()
         self.public_fingerprint = f"SHA256:{base64.b64encode(sha256_digest).decode('utf-8')}"
 
-        # Gera o primeiro token JWT
+        # Gera token inicial
         self.generate_token()
 
     # 🔧 método auxiliar
