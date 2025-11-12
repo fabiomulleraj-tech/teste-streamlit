@@ -1,10 +1,11 @@
 import streamlit as st
 import requests
 import time
-import jwt
 import base64
 import hashlib
-from cryptography.hazmat.primitives import serialization
+import json
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
 # ---------------------------------------------------------
@@ -15,7 +16,8 @@ st.title("🤖 Chat com Agentes de IA - Snowflake Cortex")
 
 ACCOUNT = "A6108453355571-ALMEIDAJR"
 USER = "TEAMS_INTEGRATION"
-MODEL = "snowflake-arctic"
+MODEL = "claude-3-5-sonnet"
+
 AGENTS = {
     "🏬 Vendas e Shoppings (VS)": {
         "agent": "AJ_VS",
@@ -30,10 +32,11 @@ AGENTS = {
         "semantic_model": "AJ_SEMANTIC_PROTHEUS",
     },
 }
+
 ENDPOINT = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents"
 
 # ---------------------------------------------------------
-# CLASSE JWTGenerator - mesma lógica do teamsBot.js
+# CLASSE JWTGenerator - idêntica ao Node.js (jsonwebtoken)
 # ---------------------------------------------------------
 class JWTGenerator:
     def __init__(self, account, user, key_path=None):
@@ -43,9 +46,6 @@ class JWTGenerator:
         self.lifetime = 3600  # 1 hora
         self.renewal_delay = self.lifetime - 300  # renova 5 min antes
 
-        # ---------------------------------------------------------
-        # 1️⃣ Carrega a chave privada (do st.secrets ou de arquivo)
-        # ---------------------------------------------------------
         key_text = None
 
         # 🔹 Preferência: st.secrets["rsa"]["private_key"]
@@ -58,31 +58,23 @@ class JWTGenerator:
                 key_text += "\n-----END PRIVATE KEY-----"
             st.sidebar.success("🔐 Chave carregada do st.secrets")
 
-        # 🔹 Alternativa: arquivo físico (rsa_key.p8)
         elif key_path:
             with open(key_path, "r") as f:
                 key_text = f.read()
             st.sidebar.info(f"🔑 Chave lida do arquivo: {key_path}")
-
-        # 🔹 Nenhuma chave encontrada
         else:
             raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
 
-        # ---------------------------------------------------------
-        # 2️⃣ Converte e carrega a chave privada
-        # ---------------------------------------------------------
+        # Converte para PEM
         self.private_key_pem = key_text.encode("utf-8")
         self.private_key = serialization.load_pem_private_key(
             self.private_key_pem, password=None, backend=default_backend()
         )
         st.sidebar.success("✅ Chave privada decodificada com sucesso.")
 
-        # ---------------------------------------------------------
-        # 3️⃣ Calcula fingerprint e gera token inicial
-        # ---------------------------------------------------------
+        # Fingerprint + JWT inicial
         self.public_fingerprint = self._calc_fingerprint()
         self.generate_token()
-
 
     def _prepare_account_name(self, raw_account):
         return raw_account.split("-")[0].split(".")[0].upper()
@@ -98,9 +90,10 @@ class JWTGenerator:
         sha256 = hashlib.sha256(der).digest()
         return f"SHA256:{base64.b64encode(sha256).decode()}"
 
+    # ---------------------------------------------------------
+    # Gera JWT idêntico ao Node.js jsonwebtoken
+    # ---------------------------------------------------------
     def generate_token(self):
-        import time, jwt
-
         now = int(time.time())
         payload = {
             "iss": f"{self.qualified_username}.{self.public_fingerprint}",
@@ -108,29 +101,38 @@ class JWTGenerator:
             "iat": now,
             "exp": now + self.lifetime,
         }
-
         headers = {
             "alg": "RS256",
             "typ": "JWT",
-            "kid": self.public_fingerprint,  # 👈 adiciona o fingerprint no header, igual ao Node
+            "kid": self.public_fingerprint,
         }
 
-        # 🔐 Assina com PEM bruta (não objeto)
-        token = jwt.encode(
-            payload,
-            self.private_key_pem,
-            algorithm="RS256",
-            headers=headers,
-        )
+        def b64url(data: bytes) -> str:
+            return base64.urlsafe_b64encode(data).decode().rstrip("=")
 
-        # 🔧 Remove padding '=' para compatibilidade total
-        token = token.replace("=", "")
+        header_b64 = b64url(json.dumps(headers, separators=(",", ":")).encode())
+        payload_b64 = b64url(json.dumps(payload, separators=(",", ":")).encode())
+        message = f"{header_b64}.{payload_b64}".encode()
+
+        signature = self.private_key.sign(
+            message,
+            padding.PKCS1v15(),
+            hashes.SHA256(),
+        )
+        signature_b64 = b64url(signature)
+        token = f"{header_b64}.{payload_b64}.{signature_b64}"
+
+        # Debug visível
+        st.sidebar.write("### 🧩 JWT Debug")
+        st.sidebar.write(f"**iss:** {payload['iss']}")
+        st.sidebar.write(f"**sub:** {payload['sub']}")
+        st.sidebar.write(f"**kid:** {headers['kid']}")
+        st.sidebar.text_area("🪪 Token completo (JWT)", token, height=150)
 
         self.token = token
         self.renew_time = now + self.renewal_delay
         st.sidebar.success("✅ JWT gerado com sucesso.")
-        return self.token
-
+        return token
 
     def get_token(self):
         now = int(time.time())
@@ -140,9 +142,8 @@ class JWTGenerator:
         return self.token
 
 
-
 # ---------------------------------------------------------
-# FUNÇÃO PARA ENVIAR PROMPT AO CORTEX
+# ENVIA PROMPT PARA O AGENTE
 # ---------------------------------------------------------
 def send_prompt_to_cortex(prompt: str, model: str, agent: str, semantic_model: str, jwt_token: str):
     headers = {"Authorization": f"Bearer {jwt_token}"}
@@ -168,6 +169,7 @@ def send_prompt_to_cortex(prompt: str, model: str, agent: str, semantic_model: s
 # ---------------------------------------------------------
 if "jwt_gen" not in st.session_state:
     st.session_state.jwt_gen = JWTGenerator(ACCOUNT, USER)
+
 jwt_gen = st.session_state.jwt_gen
 jwt_token = jwt_gen.get_token()
 
