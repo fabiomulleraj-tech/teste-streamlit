@@ -76,24 +76,49 @@ class JWTGenerator:
 
 
 # ---------------------------------------------------------
-# CRIAR SESSÃO SNOWFLAKE
+# CRIAR E MANTER SESSÃO SNOWFLAKE COM RENOVAÇÃO DE JWT
 # ---------------------------------------------------------
-@st.cache_resource
-def get_session():
-    jwt_gen = JWTGenerator(ACCOUNT, USER, RSA_KEY_PATH)
-    token = jwt_gen.get_token()
+def create_session():
+    """Cria uma sessão Snowflake com token JWT válido."""
+    try:
+        if "jwt_gen" not in st.session_state:
+            st.session_state.jwt_gen = JWTGenerator(ACCOUNT, USER, RSA_KEY_PATH)
 
-    session = Session.builder.configs({
-        "account": ACCOUNT.split(".")[0],  # <- sem .snowflakecomputing.com
-        "user": USER.upper(),
-        "authenticator": "SNOWFLAKE_JWT",  # <- valor correto!
-        "token": token if isinstance(token, str) else token.decode(),
-        "role": ROLE,
-        "warehouse": WAREHOUSE,
-        "database": DATABASE,
-        "schema": SCHEMA,
-    }).create()
-    return session, jwt_gen
+        jwt_gen = st.session_state.jwt_gen
+        token = jwt_gen.get_token()
+
+        session = Session.builder.configs({
+            "account": ACCOUNT,
+            "user": USER,
+            "authenticator": "SNOWFLAKE_JWT",
+            "token": token if isinstance(token, str) else token.decode(),
+            "role": ROLE,
+            "warehouse": WAREHOUSE,
+            "database": DATABASE,
+            "schema": SCHEMA,
+        }).create()
+
+        st.session_state.session = session
+        return session
+
+    except Exception as e:
+        st.error(f"❌ Falha ao conectar ao Snowflake: {e}")
+        st.stop()
+
+
+# ---------------------------------------------------------
+# GARANTE SESSÃO ATIVA
+# ---------------------------------------------------------
+if "session" not in st.session_state:
+    session = create_session()
+else:
+    session = st.session_state.session
+    # se a sessão for perdida, recria
+    try:
+        session.sql("SELECT 1").collect()
+    except Exception:
+        st.warning("⚠️ Sessão expirada. Recriando conexão...")
+        session = create_session()
 
 # ---------------------------------------------------------
 # LISTA DE AGENTES
@@ -136,28 +161,18 @@ if prompt:
 
     with st.spinner(f"Consultando agente {agent_name}..."):
         try:
-            token = jwt_gen.get_token()  # garante renovação automática
-            session = Session.builder.configs({
-                "account": ACCOUNT,
-                "user": USER,
-                "authenticator": "JWT",
-                "token": token,
-                "role": ROLE,
-                "warehouse": WAREHOUSE,
-                "database": DATABASE,
-                "schema": SCHEMA,
-            }).create()
-
+            session = st.session_state.session  # sempre usa a sessão ativa
             query = f"""
-                SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                    '{agent_name}',
-                    '{prompt}'
-                ) AS RESPOSTA;
-            """
+            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                '{agent_name}',
+                '{prompt}'
+            ) AS RESPOSTA;
+        """
             result = session.sql(query).collect()
             resposta = result[0]["RESPOSTA"] if result else "⚠️ Nenhuma resposta retornada."
         except Exception as e:
-            resposta = f"⚠️ Erro ao consultar o agente: {e}"
+                resposta = f"⚠️ Erro ao consultar o agente: {e}"
+
 
     st.chat_message("assistant").write(resposta)
     st.session_state.messages.append({"role": "assistant", "content": resposta})
