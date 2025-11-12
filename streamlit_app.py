@@ -12,16 +12,16 @@ from cryptography.hazmat.backends import default_backend
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
 st.set_page_config(page_title="Snowflake Cortex Chat", page_icon="❄️", layout="wide")
-st.title("🤖 Fale com o Betinho")
+st.title("🤖 Fale com o Bentinho")
 
 ACCOUNT = "A6108453355571-ALMEIDAJR"
 USER = "TEAMS_INTEGRATION"
 MODEL = "claude-3-5-sonnet"
 
 AGENTS = {
-    "🏬 Vendas e Shoppings (VS)": {"agent": "AJ_VS", "semantic_model": "AJ_SEMANTIC_VIEW_VS"},
-    "📑 Jurídico (Contratos)": {"agent": "AJ_JURIDICO", "semantic_model": "AJ_SEMANTIC_JURIDICO"},
-    "🧾 Protheus (Compras e Contratos)": {"agent": "AJ_PROTHEUS", "semantic_model": "AJ_SEMANTIC_PROTHEUS"},
+    "🏬 Vendas e Faturamento": {"agent": "AJ_VS", "semantic_model": "AJ_SEMANTIC_VIEW_VS"},
+    "📑 Contratos de Logistas": {"agent": "AJ_JURIDICO", "semantic_model": "AJ_SEMANTIC_JURIDICO"},
+    "🧾 Contratos de Fornecedores": {"agent": "AJ_PROTHEUS", "semantic_model": "AJ_SEMANTIC_PROTHEUS"},
 }
 
 ENDPOINT = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents"
@@ -60,13 +60,13 @@ class JWTGenerator:
         self.private_key = serialization.load_pem_private_key(
             self.private_key_pem, password=None, backend=default_backend()
         )
-        st.sidebar.success("✅ Chave privada decodificada com sucesso.")
+        # st.sidebar.success("✅ Chave privada decodificada com sucesso.")
 
         # ---------------------------------------------------------
         # 2️⃣ Gera o fingerprint (SPKI DER → SHA256 Base64)
         # ---------------------------------------------------------
         self.public_fingerprint = self._calculate_public_key_fingerprint()
-        st.sidebar.write(f"**Fingerprint:** `{self.public_fingerprint}`")
+        # st.sidebar.write(f"**Fingerprint:** `{self.public_fingerprint}`")
 
         # ---------------------------------------------------------
         # 3️⃣ Gera o primeiro JWT
@@ -112,21 +112,21 @@ class JWTGenerator:
         token = f"{header_b64}.{payload_b64}.{signature_b64}"
 
         # Debug visual completo
-        st.sidebar.write("### 🧩 JWT Debug")
-        st.sidebar.write(f"**iss:** {payload['iss']}")
-        st.sidebar.write(f"**sub:** {payload['sub']}")
-        st.sidebar.text_area("🪪 Token JWT Gerado", token, height=150)
+        #st.sidebar.write("### 🧩 JWT Debug")
+        #st.sidebar.write(f"**iss:** {payload['iss']}")
+        #st.sidebar.write(f"**sub:** {payload['sub']}")
+        #st.sidebar.text_area("🪪 Token JWT Gerado", token, height=150)
 
         self.token = token
         self.renew_time = now + self.renewal_delay
-        st.sidebar.success("✅ JWT gerado com sucesso.")
+        #st.sidebar.success("✅ JWT gerado com sucesso.")
         return token
 
     # ---------------------------------------------------------
     def get_token(self):
         now = int(time.time())
         if now >= self.renew_time:
-            st.sidebar.warning("♻️ Renovando JWT...")
+            #st.sidebar.warning("♻️ Renovando JWT...")
             self.generate_token()
         return self.token
 
@@ -180,15 +180,15 @@ jwt_token = jwt_gen.get_token()
 # ---------------------------------------------------------
 # SIDEBAR - seleção de agente
 # ---------------------------------------------------------
-st.sidebar.header("⚙️ Configurações")
-selected_agent = st.sidebar.selectbox("Selecione o agente de IA:", list(AGENTS.keys()))
+st.sidebar.header("⚙️ Selecione o agente")
+selected_agent = st.sidebar.selectbox(list(AGENTS.keys()))
 agent_cfg = AGENTS[selected_agent]
 agent_name = agent_cfg["agent"]
 semantic_model = agent_cfg["semantic_model"]
 st.sidebar.markdown("---")
-st.sidebar.write(f"**Usuário:** {USER}")
-st.sidebar.write(f"**Conta:** {ACCOUNT}")
-st.sidebar.write(f"**Renovação:** {time.strftime('%H:%M:%S', time.localtime(jwt_gen.renew_time))}")
+#st.sidebar.write(f"**Usuário:** {USER}")
+#st.sidebar.write(f"**Conta:** {ACCOUNT}")
+#st.sidebar.write(f"**Renovação:** {time.strftime('%H:%M:%S', time.localtime(jwt_gen.renew_time))}")
 
 # ---------------------------------------------------------
 # HISTÓRICO DE CHAT
