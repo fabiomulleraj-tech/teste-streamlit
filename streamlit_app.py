@@ -4,6 +4,8 @@ import time
 import json
 import base64
 import hashlib
+import sseclient
+import io
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
@@ -132,13 +134,16 @@ class JWTGenerator:
 
 
 # ---------------------------------------------------------
-# FUNÇÃO DE ENVIO AO CORTEX
+# STREAMING DE RESPOSTAS DO CORTEX (tipo "Thinking steps")
 # ---------------------------------------------------------
 def send_prompt_to_cortex(prompt, agent, jwt_token):
     url = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents/{agent}:run"
-    headers = {"Authorization": f"Bearer {jwt_token}"}
+    headers = {
+        "Authorization": f"Bearer {jwt_token}",
+        "Accept": "text/event-stream",
+        "Content-Type": "application/json",
+    }
 
-    # ✅ Estrutura idêntica ao que o TeamsBot usa
     body = {
         "messages": [
             {
@@ -151,17 +156,33 @@ def send_prompt_to_cortex(prompt, agent, jwt_token):
     }
 
     try:
-        resp = requests.post(url, headers=headers, json=body, timeout=120)
-        if resp.status_code == 200:
-            data = resp.json()
-            outputs = data.get("outputs", [])
-            if outputs and "text" in outputs[0]:
-                return outputs[0]["text"]
-            return json.dumps(data, indent=2)
-        else:
-            # Exibe o corpo de resposta completo para debug
-            st.sidebar.error(f"⚠️ Erro HTTP {resp.status_code}: {resp.text}")
-            return f"⚠️ Erro HTTP {resp.status_code}: {resp.text}"
+        # Usa stream=True para receber os eventos em tempo real
+        with requests.post(url, headers=headers, json=body, stream=True, timeout=180) as resp:
+            if resp.status_code != 200:
+                return f"⚠️ Erro HTTP {resp.status_code}: {resp.text}"
+
+            client = sseclient.SSEClient(io.TextIOWrapper(resp.raw, encoding="utf-8"))
+            full_text = ""
+            thinking_box = st.empty()
+            chat_box = st.empty()
+
+            for event in client.events():
+                if event.event == "message":
+                    try:
+                        data = json.loads(event.data)
+                        if "thinking" in data:
+                            # Mostra passo de raciocínio em tempo real
+                            thinking_box.markdown(f"🧠 **Pensando...**\n\n```\n{data['thinking']}\n```")
+                        if "output" in data:
+                            # Atualiza a resposta parcial
+                            full_text += data["output"].get("text", "")
+                            chat_box.markdown(full_text)
+                    except Exception:
+                        pass
+
+            thinking_box.empty()  # remove bloco "pensando" ao final
+            return full_text.strip() or "⚠️ Nenhum conteúdo retornado."
+
     except Exception as e:
         return f"❌ Erro ao consultar o agente: {e}"
 
@@ -203,7 +224,7 @@ for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
 # ---------------------------------------------------------
-# INPUT DO USUÁRIO
+# INPUT DO USUÁRIO + STREAMING
 # ---------------------------------------------------------
 prompt = st.chat_input("Digite sua pergunta...")
 
