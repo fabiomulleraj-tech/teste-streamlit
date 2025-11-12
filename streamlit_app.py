@@ -16,11 +16,23 @@ st.title("🤖 Chat com Agentes de IA - Snowflake Cortex")
 ACCOUNT = "A6108453355571-ALMEIDAJR"
 USER = "TEAMS_INTEGRATION"
 MODEL = "snowflake-arctic"
-SEMANTIC_MODELS = {
-    "📑 Jurídico (Contratos)": "AJ_JURIDICO_CONTRATOS",
-    "🏬 Vendas e Shoppings (VS)": "AJ_SEMANTIC_VIEW_VS",
-    "🧾 Protheus (Compras e Contratos)": "AJ_SEMANTIC_PROTHEUS",
-    "⚙️ Supply Chain": "AJ_SUPPLY_CHAIN",
+AGENTS = {
+    "📑 Jurídico (Contratos)": {
+        "agent": "AJ_JURIDICO",
+        "semantic_model": "AJ_SEMANTIC_JURIDICO",
+    },
+    "🏬 Vendas e Shoppings (VS)": {
+        "agent": "AJ_VS",
+        "semantic_model": "AJ_SEMANTIC_VIEW_VS",
+    },
+    "🧾 Protheus (Compras e Contratos)": {
+        "agent": "AJ_PROTHEUS",
+        "semantic_model": "AJ_SEMANTIC_PROTHEUS",
+    },
+    "⚙️ Supply Chain": {
+        "agent": "AJ_SUPPLY_CHAIN",
+        "semantic_model": "AJ_SUPPLY_CHAIN",
+    },
 }
 ENDPOINT = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents"
 
@@ -86,34 +98,23 @@ class JWTGenerator:
 # ---------------------------------------------------------
 # FUNÇÃO PARA ENVIAR PROMPT AO CORTEX
 # ---------------------------------------------------------
-def send_prompt_to_cortex(prompt: str, model: str, semantic_model: str, jwt_token: str):
+def send_prompt_to_cortex(prompt: str, model: str, agent: str, semantic_model: str, jwt_token: str):
     headers = {"Authorization": f"Bearer {jwt_token}"}
-    body = {
-        "model": model,
-        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
-        "tools": [{"tool_spec": {"type": "cortex_analyst_text_to_sql", "name": "data_model"}}],
-        "tool_resources": {"data_model": {"semantic_view": semantic_model}},
-    }
+    url = f"{ENDPOINT}/{agent}:run"
+    body = {"inputs": {"question": prompt, "semantic_model": semantic_model}}
+
     try:
-        resp = requests.post(
-                        f"{ENDPOINT}/{semantic_model}:run",   # 👈 adiciona :run ao final do agente
-                        headers=headers,
-                        json={"inputs": {"question": prompt}},
-                        timeout=120
-                    )
+        resp = requests.post(url, headers=headers, json=body, timeout=120)
         if resp.status_code == 200:
             data = resp.json()
-            # Cortex retorna o texto dentro de choices[0].message.content[0].text
-            return (
-                data.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", [{}])[0]
-                .get("text", "⚠️ Resposta vazia do agente.")
-            )
+            outputs = data.get("outputs", [])
+            if outputs and "text" in outputs[0]:
+                return outputs[0]["text"]
+            return str(data)
         else:
             return f"⚠️ Erro HTTP {resp.status_code}: {resp.text}"
     except Exception as e:
-        return f"❌ Erro na requisição ao Cortex: {e}"
+        return f"❌ Erro na requisição ao Cortex Agent: {e}"
 
 
 # ---------------------------------------------------------
@@ -128,8 +129,10 @@ jwt_token = jwt_gen.get_token()
 # SIDEBAR - seleção de agente
 # ---------------------------------------------------------
 st.sidebar.header("⚙️ Configurações")
-selected_agent = st.sidebar.selectbox("Selecione o agente de IA:", list(SEMANTIC_MODELS.keys()))
-semantic_model = SEMANTIC_MODELS[selected_agent]
+selected_agent = st.sidebar.selectbox("Selecione o agente de IA:", list(AGENTS.keys()))
+agent_cfg = AGENTS[selected_agent]
+agent_name = agent_cfg["agent"]
+semantic_model = agent_cfg["semantic_model"]
 st.sidebar.markdown("---")
 st.sidebar.write(f"**Usuário:** {USER}")
 st.sidebar.write(f"**Conta:** {ACCOUNT}")
@@ -155,7 +158,7 @@ if prompt:
     st.chat_message("user").write(prompt)
 
     with st.spinner(f"Consultando agente {selected_agent}..."):
-        resposta = send_prompt_to_cortex(prompt, MODEL, semantic_model, jwt_token)
+        resposta = send_prompt_to_cortex(prompt, MODEL, agent_name, semantic_model, jwt_token)
 
     st.chat_message("assistant").write(resposta)
     st.session_state.messages.append({"role": "assistant", "content": resposta})
