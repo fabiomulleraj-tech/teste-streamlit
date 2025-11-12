@@ -99,6 +99,8 @@ class JWTGenerator:
         return f"SHA256:{base64.b64encode(sha256).decode()}"
 
     def generate_token(self):
+        import time, jwt
+
         now = int(time.time())
         payload = {
             "iss": f"{self.qualified_username}.{self.public_fingerprint}",
@@ -106,10 +108,29 @@ class JWTGenerator:
             "iat": now,
             "exp": now + self.lifetime,
         }
-        self.token = jwt.encode(payload, self.private_key_pem, algorithm="RS256")
+
+        headers = {
+            "alg": "RS256",
+            "typ": "JWT",
+            "kid": self.public_fingerprint,  # 👈 adiciona o fingerprint no header, igual ao Node
+        }
+
+        # 🔐 Assina com PEM bruta (não objeto)
+        token = jwt.encode(
+            payload,
+            self.private_key_pem,
+            algorithm="RS256",
+            headers=headers,
+        )
+
+        # 🔧 Remove padding '=' para compatibilidade total
+        token = token.replace("=", "")
+
+        self.token = token
         self.renew_time = now + self.renewal_delay
         st.sidebar.success("✅ JWT gerado com sucesso.")
         return self.token
+
 
     def get_token(self):
         now = int(time.time())
