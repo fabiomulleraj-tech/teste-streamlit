@@ -136,6 +136,9 @@ class JWTGenerator:
 # ---------------------------------------------------------
 # STREAMING DE RESPOSTAS DO CORTEX (tipo "Thinking steps")
 # ---------------------------------------------------------
+import sseclient
+import io
+
 def send_prompt_to_cortex(prompt, agent, jwt_token):
     url = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents/{agent}:run"
     headers = {
@@ -148,45 +151,42 @@ def send_prompt_to_cortex(prompt, agent, jwt_token):
         "messages": [
             {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt}
-                ]
+                "content": [{"type": "text", "text": prompt}]
             }
         ]
     }
 
     try:
-        # Usa stream=True para receber os eventos em tempo real
         with requests.post(url, headers=headers, json=body, stream=True, timeout=180) as resp:
             if resp.status_code != 200:
                 return f"⚠️ Erro HTTP {resp.status_code}: {resp.text}"
 
-            client = sseclient.SSEClient(io.TextIOWrapper(resp.raw, encoding="utf-8"))
+            # ✅ Correção: decodifica bytes manualmente
+            client = sseclient.SSEClient(resp.iter_lines(decode_unicode=True))
             full_text = ""
             thinking_box = st.empty()
             chat_box = st.empty()
 
             for event in client.events():
-                if event.event == "message":
+                if event.event == "message" and event.data:
                     try:
                         data = json.loads(event.data)
+                        # mostra passos "thinking"
                         if "thinking" in data:
-                            # Mostra passo de raciocínio em tempo real
-                            thinking_box.markdown(f"🧠 **Pensando...**\n\n```\n{data['thinking']}\n```")
+                            thinking_box.markdown(
+                                f"🧠 **Pensando...**\n\n```\n{data['thinking']}\n```"
+                            )
+                        # mostra texto parcial
                         if "output" in data:
-                            # Atualiza a resposta parcial
                             full_text += data["output"].get("text", "")
                             chat_box.markdown(full_text)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        st.sidebar.warning(f"⚠️ Erro no parse SSE: {e}")
 
-            thinking_box.empty()  # remove bloco "pensando" ao final
+            thinking_box.empty()
             return full_text.strip() or "⚠️ Nenhum conteúdo retornado."
-
     except Exception as e:
         return f"❌ Erro ao consultar o agente: {e}"
-
-
 
 # ---------------------------------------------------------
 # INICIALIZA JWT E CHAT
