@@ -21,7 +21,7 @@ USER = "TEAMS_INTEGRATION"
 MODEL = "claude-3-5-sonnet"
 
 AGENTS = {
-    "🏬 Vendas e Faturamento": {"agent": "AJ_VS", "semantic_model": "AJ_SEMANTIC_VIEW_VS"},
+    "🏬 Vendas e Faturamento": {"agent": "AJ_FATURAMENTO", "semantic_model": "AJ_SEMANTIC_VIEW_VS_TESTE"},
     "📑 Contratos de Logistas": {"agent": "AJ_JURIDICO", "semantic_model": "AJ_SEMANTIC_JURIDICO"},
     "🧾 Contratos de Fornecedores": {"agent": "AJ_PROTHEUS", "semantic_model": "AJ_SEMANTIC_PROTHEUS"},
 }
