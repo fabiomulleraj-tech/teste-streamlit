@@ -4,3 +4,4 @@ snowflake-connector-python
 cryptography
 PyJWT
 requests
+sseclient-py
