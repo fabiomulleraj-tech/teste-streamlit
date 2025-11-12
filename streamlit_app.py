@@ -134,11 +134,11 @@ class JWTGenerator:
 # ---------------------------------------------------------
 # FUNÇÃO DE ENVIO AO CORTEX
 # ---------------------------------------------------------
-def send_prompt_to_cortex(prompt, model, agent, semantic_model, jwt_token):
+def send_prompt_to_cortex(prompt, agent, jwt_token):
+    url = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents/{agent}:run"
     headers = {"Authorization": f"Bearer {jwt_token}"}
-    url = f"{ENDPOINT}/{agent}:run"
 
-    # ✅ Estrutura idêntica à usada no TeamsBot.js
+    # ✅ Estrutura idêntica ao que o TeamsBot usa
     body = {
         "messages": [
             {
@@ -147,11 +147,7 @@ def send_prompt_to_cortex(prompt, model, agent, semantic_model, jwt_token):
                     {"type": "text", "text": prompt}
                 ]
             }
-        ],
-        "model": model,
-        "parameters": {
-            "semantic_model": semantic_model
-        }
+        ]
     }
 
     try:
@@ -163,9 +159,12 @@ def send_prompt_to_cortex(prompt, model, agent, semantic_model, jwt_token):
                 return outputs[0]["text"]
             return json.dumps(data, indent=2)
         else:
+            # Exibe o corpo de resposta completo para debug
+            st.sidebar.error(f"⚠️ Erro HTTP {resp.status_code}: {resp.text}")
             return f"⚠️ Erro HTTP {resp.status_code}: {resp.text}"
     except Exception as e:
-        return f"❌ Erro ao consultar o Cortex Agent: {e}"
+        return f"❌ Erro ao consultar o agente: {e}"
+
 
 
 # ---------------------------------------------------------
