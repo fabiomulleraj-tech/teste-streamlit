@@ -29,10 +29,6 @@ AGENTS = {
         "agent": "AJ_PROTHEUS",
         "semantic_model": "AJ_SEMANTIC_PROTHEUS",
     },
-    "⚙️ Supply Chain": {
-        "agent": "AJ_SUPPLY_CHAIN",
-        "semantic_model": "AJ_SUPPLY_CHAIN",
-    },
 }
 ENDPOINT = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents"
 
@@ -40,8 +36,8 @@ ENDPOINT = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE
 # CLASSE JWTGenerator - mesma lógica do teamsBot.js
 # ---------------------------------------------------------
 class JWTGenerator:
-    def __init__(self, account, user):
-        self.account = account.split(".")[0].upper()
+    def __init__(self, account, user, key_path=None):
+        self.account = self._prepare_account_name(account)
         self.user = user.upper()
         self.lifetime = 3600  # 1h
         self.renewal_delay = self.lifetime - 300
@@ -73,7 +69,10 @@ class JWTGenerator:
         )
         sha256_digest = hashlib.sha256(public_key).digest()
         return f"SHA256:{base64.b64encode(sha256_digest).decode()}"
-
+    
+    def _prepare_account_name(self, raw_account):
+        return raw_account.split("-")[0].split(".")[0].upper()
+    
     def generate_token(self):
         now = int(time.time())
         payload = {
