@@ -12,22 +12,22 @@ from cryptography.hazmat.backends import default_backend
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
 st.set_page_config(page_title="Snowflake Cortex Chat", page_icon="❄️", layout="wide")
-st.title("🤖 Chat com Agentes de IA - Snowflake Cortex")
+st.title("🤖 Fale com o Bentinho")
 
 ACCOUNT = "A6108453355571-ALMEIDAJR"
 USER = "TEAMS_INTEGRATION"
 MODEL = "claude-3-5-sonnet"
 
 AGENTS = {
-    "🏬 Vendas e Shoppings (VS)": {
+    "🏬 Vendas e Faturamento": {
         "agent": "AJ_VS",
         "semantic_model": "AJ_SEMANTIC_VIEW_VS",
     },
-    "📑 Jurídico (Contratos)": {
+    "📑 Contratos Logistas": {
         "agent": "AJ_JURIDICO",
         "semantic_model": "AJ_SEMANTIC_JURIDICO",
     },
-    "🧾 Protheus (Compras e Contratos)": {
+    "🧾 Contratos Fornecedores": {
         "agent": "AJ_PROTHEUS",
         "semantic_model": "AJ_SEMANTIC_PROTHEUS",
     },
