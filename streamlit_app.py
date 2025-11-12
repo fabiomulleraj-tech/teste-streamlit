@@ -97,23 +97,29 @@ class JWTGenerator:
             return raw_account.split("-")[0].upper()
         return raw_account.split(".")[0].upper()
 
-    def generate_token(self):
-        now = int(time.time())
-        payload = {
-            "iss": f"{self.qualified_username}.{self.public_fingerprint}",
-            "sub": self.qualified_username,
-            "iat": now,
-            "exp": now + self.lifetime,
-        }
+        def generate_token(self):
+            import time, jwt
+            now = int(time.time())
 
-        # Garante que a chave seja um objeto RSAPrivateKey
-        private_key_obj = self.private_key
-        if private_key_obj is None:
-            raise ValueError("Chave privada inválida.")
+            payload = {
+                "iss": f"{self.qualified_username}.{self.public_fingerprint}",
+                "sub": self.qualified_username,
+                "iat": now,
+                "exp": now + self.lifetime,
+            }
 
-        self.token = jwt.encode(payload, self.private_key_pem, algorithm="RS256")
-        self.renew_time = now + self.renewal_delay
-        return self.token
+            # 🔧 garante que a chave seja uma STRING PEM válida (não bytes, nem objeto)
+            key_str = self.private_key_pem.decode("utf-8").strip()
+            if not key_str.startswith("-----BEGIN"):
+                raise ValueError("Formato da chave inválido — PEM ausente.")
+
+            # 🧾 gera o JWT assinado
+            self.token = jwt.encode(payload, key_str, algorithm="RS256")
+
+            self.renew_time = now + self.renewal_delay
+            st.sidebar.success("✅ JWT gerado com sucesso.")
+            return self.token
+
 
     def get_token(self):
         now = int(time.time())
