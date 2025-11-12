@@ -22,7 +22,7 @@ SEMANTIC_MODELS = {
     "🧾 Protheus (Compras e Contratos)": "AJ_SEMANTIC_PROTHEUS",
     "⚙️ Supply Chain": "AJ_SUPPLY_CHAIN",
 }
-ENDPOINT = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/cortex/chat/completions"
+ENDPOINT = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents"
 
 # ---------------------------------------------------------
 # CLASSE JWTGenerator - mesma lógica do teamsBot.js
@@ -88,27 +88,22 @@ class JWTGenerator:
 # ---------------------------------------------------------
 def send_prompt_to_cortex(prompt: str, model: str, semantic_model: str, jwt_token: str):
     headers = {"Authorization": f"Bearer {jwt_token}"}
-    body = {
-        "model": model,
-        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
-        "tools": [{"tool_spec": {"type": "cortex_analyst_text_to_sql", "name": "data_model"}}],
-        "tool_resources": {"data_model": {"semantic_view": semantic_model}},
-    }
+    url = f"{ENDPOINT}/{semantic_model}:run"
+    body = {"inputs": {"question": prompt}}
     try:
-        resp = requests.post(ENDPOINT, headers=headers, json=body, timeout=120)
+        resp = requests.post(url, headers=headers, json=body, timeout=120)
         if resp.status_code == 200:
             data = resp.json()
-            # Cortex retorna o texto dentro de choices[0].message.content[0].text
-            return (
-                data.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", [{}])[0]
-                .get("text", "⚠️ Resposta vazia do agente.")
-            )
+            # Cortex Agent retorna a resposta em outputs[0].text ou similar
+            outputs = data.get("outputs", [])
+            if outputs and "text" in outputs[0]:
+                return outputs[0]["text"]
+            return str(data)
         else:
             return f"⚠️ Erro HTTP {resp.status_code}: {resp.text}"
     except Exception as e:
-        return f"❌ Erro na requisição ao Cortex: {e}"
+        return f"❌ Erro na requisição ao Cortex Agent: {e}"
+
 
 
 # ---------------------------------------------------------
