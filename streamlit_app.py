@@ -141,7 +141,7 @@ def create_session():
         session = Session.builder.configs({
             "account": ACCOUNT,
             "user": USER,
-            "authenticator": "SNOWFLAKE_JWT",
+            "authenticator": "JWT",
             "token": token if isinstance(token, str) else token.decode(),
             "role": ROLE,
             "warehouse": WAREHOUSE,
