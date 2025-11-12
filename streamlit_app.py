@@ -88,22 +88,32 @@ class JWTGenerator:
 # ---------------------------------------------------------
 def send_prompt_to_cortex(prompt: str, model: str, semantic_model: str, jwt_token: str):
     headers = {"Authorization": f"Bearer {jwt_token}"}
-    url = f"{ENDPOINT}/{semantic_model}:run"
-    body = {"inputs": {"question": prompt}}
+    body = {
+        "model": model,
+        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+        "tools": [{"tool_spec": {"type": "cortex_analyst_text_to_sql", "name": "data_model"}}],
+        "tool_resources": {"data_model": {"semantic_view": semantic_model}},
+    }
     try:
-        resp = requests.post(url, headers=headers, json=body, timeout=120)
+        resp = requests.post(
+                        f"{ENDPOINT}/{semantic_model}:run",   # 👈 adiciona :run ao final do agente
+                        headers=headers,
+                        json={"inputs": {"question": prompt}},
+                        timeout=120
+                    )
         if resp.status_code == 200:
             data = resp.json()
-            # Cortex Agent retorna a resposta em outputs[0].text ou similar
-            outputs = data.get("outputs", [])
-            if outputs and "text" in outputs[0]:
-                return outputs[0]["text"]
-            return str(data)
+            # Cortex retorna o texto dentro de choices[0].message.content[0].text
+            return (
+                data.get("choices", [{}])[0]
+                .get("message", {})
+                .get("content", [{}])[0]
+                .get("text", "⚠️ Resposta vazia do agente.")
+            )
         else:
             return f"⚠️ Erro HTTP {resp.status_code}: {resp.text}"
     except Exception as e:
-        return f"❌ Erro na requisição ao Cortex Agent: {e}"
-
+        return f"❌ Erro na requisição ao Cortex: {e}"
 
 
 # ---------------------------------------------------------
