@@ -22,57 +22,45 @@ SCHEMA = "SILVER"
 RSA_KEY_PATH = "rsa_key.p8"
 
 # ---------------------------------------------------------
-# GERADOR DE JWT (baseado na sua versão Node)
+# GERADOR DE JWT (corrigido para usar st.secrets)
 # ---------------------------------------------------------
 class JWTGenerator:
-    def __init__(self, account, user, key_path):
+    def __init__(self, account, user, key_path=None):
         self.account = self._prepare_account_name(account)
         self.user = user.upper()
         self.qualified_username = f"{self.account}.{self.user}"
-        self.lifetime = 3600  # 1 hora
+        self.lifetime = 3600  # 1h
         self.renewal_delay = self.lifetime - 300  # renova 5min antes
-        self.private_key_pem = open(key_path, "rb").read()
+
+        # 🔑 tenta carregar a chave do secrets primeiro
+        if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
+            self.private_key_pem = st.secrets["rsa"]["private_key"].encode()
+            st.sidebar.success("🔐 Chave carregada do st.secrets")
+        elif key_path:
+            self.private_key_pem = open(key_path, "rb").read()
+            st.sidebar.info(f"🔑 Chave lida de arquivo: {key_path}")
+        else:
+            raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
+
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.backends import default_backend
+
         self.private_key = serialization.load_pem_private_key(
             self.private_key_pem, password=None, backend=default_backend()
         )
-        self.public_fingerprint = self._calculate_public_key_fingerprint()
-        self.token = None
-        self.renew_time = 0
-        self.generate_token()
 
-    def _prepare_account_name(self, raw_account):
-        if ".global" in raw_account:
-            return raw_account.split("-")[0].upper()
-        return raw_account.split(".")[0].upper()
-
-    def _calculate_public_key_fingerprint(self):
+        import hashlib, base64
         public_key = self.private_key.public_key()
-        der_public_key = public_key.public_bytes(
+        der_pub = public_key.public_bytes(
             encoding=serialization.Encoding.DER,
             format=serialization.PublicFormat.SubjectPublicKeyInfo,
         )
-        sha256_digest = hashlib.sha256(der_public_key).digest()
-        fingerprint = f"SHA256:{base64.b64encode(sha256_digest).decode('utf-8')}"
-        return fingerprint
+        sha256_digest = hashlib.sha256(der_pub).digest()
+        self.public_fingerprint = f"SHA256:{base64.b64encode(sha256_digest).decode('utf-8')}"
 
-    def generate_token(self):
-        now = int(time.time())
-        payload = {
-            "iss": f"{self.qualified_username}.{self.public_fingerprint}",
-            "sub": self.qualified_username,
-            "iat": now,
-            "exp": now + self.lifetime,
-        }
-        self.token = jwt.encode(payload, self.private_key_pem, algorithm="RS256")
-        self.renew_time = now + self.renewal_delay
-        return self.token
-
-    def get_token(self):
-        now = int(time.time())
-        if now >= self.renew_time:
-            print("♻️ Regenerando JWT...")
-            self.generate_token()
-        return self.token
+        self.token = None
+        self.renew_time = 0
+        self.generate_token()
 
 
 # ---------------------------------------------------------
