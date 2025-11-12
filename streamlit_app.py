@@ -17,13 +17,13 @@ ACCOUNT = "A6108453355571-ALMEIDAJR"
 USER = "TEAMS_INTEGRATION"
 MODEL = "snowflake-arctic"
 AGENTS = {
-    "📑 Jurídico (Contratos)": {
-        "agent": "AJ_JURIDICO",
-        "semantic_model": "AJ_SEMANTIC_JURIDICO",
-    },
     "🏬 Vendas e Shoppings (VS)": {
         "agent": "AJ_VS",
         "semantic_model": "AJ_SEMANTIC_VIEW_VS",
+    },
+    "📑 Jurídico (Contratos)": {
+        "agent": "AJ_JURIDICO",
+        "semantic_model": "AJ_SEMANTIC_JURIDICO",
     },
     "🧾 Protheus (Compras e Contratos)": {
         "agent": "AJ_PROTHEUS",
