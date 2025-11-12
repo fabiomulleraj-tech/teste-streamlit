@@ -22,39 +22,35 @@ SCHEMA = "SILVER"
 RSA_KEY_PATH = "rsa_key.p8"
 
 # ---------------------------------------------------------
-# GERADOR DE JWT (corrigido e completo)
+# GERADOR DE JWT
 # ---------------------------------------------------------
 class JWTGenerator:
     def __init__(self, account, user, key_path=None):
         self.account = self._prepare_account_name(account)
         self.user = user.upper()
         self.qualified_username = f"{self.account}.{self.user}"
-        self.lifetime = 3600  # 1h
-        self.renewal_delay = self.lifetime - 300  # renova 5min antes
+        self.lifetime = 3600  # 1 hora
+        self.renewal_delay = self.lifetime - 300  # renova 5 min antes
+        self.token = None
+        self.renew_time = 0
 
         # 🔑 tenta carregar a chave do secrets primeiro
         if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
             key_text = st.secrets["rsa"]["private_key"]
-
-            # 🧹 normaliza o texto da chave: remove espaços, garante quebras de linha reais
             key_text = key_text.replace("\\n", "\n").strip()
             if not key_text.startswith("-----BEGIN"):
                 key_text = "-----BEGIN PRIVATE KEY-----\n" + key_text
             if not key_text.endswith("-----END PRIVATE KEY-----"):
                 key_text = key_text + "\n-----END PRIVATE KEY-----"
-
             self.private_key_pem = key_text.encode()
             st.sidebar.success("🔐 Chave carregada do st.secrets")
-
         elif key_path:
             self.private_key_pem = open(key_path, "rb").read()
             st.sidebar.info(f"🔑 Chave lida de arquivo: {key_path}")
         else:
             raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
 
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.backends import default_backend
-
+        # Carrega a chave RSA
         try:
             self.private_key = serialization.load_pem_private_key(
                 self.private_key_pem, password=None, backend=default_backend()
@@ -63,17 +59,26 @@ class JWTGenerator:
             st.error(f"Erro ao decodificar chave privada: {e}")
             raise
 
+        # Calcula fingerprint da chave pública
+        public_key = self.private_key.public_key()
+        der_pub = public_key.public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        sha256_digest = hashlib.sha256(der_pub).digest()
+        self.public_fingerprint = f"SHA256:{base64.b64encode(sha256_digest).decode('utf-8')}"
 
-    # 🔧 método que estava faltando
+        # Gera o primeiro token JWT
+        self.generate_token()
+
+    # 🔧 método auxiliar
     def _prepare_account_name(self, raw_account):
         if ".global" in raw_account:
             return raw_account.split("-")[0].upper()
         return raw_account.split(".")[0].upper()
 
     def generate_token(self):
-        import time, jwt
         now = int(time.time())
-
         payload = {
             "iss": f"{self.qualified_username}.{self.public_fingerprint}",
             "sub": self.qualified_username,
@@ -81,18 +86,16 @@ class JWTGenerator:
             "exp": now + self.lifetime,
         }
 
-        # 🔧 garante que a chave seja um objeto RSAPrivateKey válido
+        # Garante que a chave seja um objeto RSAPrivateKey
         private_key_obj = self.private_key
         if private_key_obj is None:
-            raise ValueError("Private key object is None — verifique se foi carregada corretamente.")
+            raise ValueError("Chave privada inválida.")
 
-        # 🧾 gera o JWT assinado
         self.token = jwt.encode(payload, private_key_obj, algorithm="RS256")
         self.renew_time = now + self.renewal_delay
         return self.token
 
     def get_token(self):
-        import time
         now = int(time.time())
         if now >= self.renew_time:
             st.sidebar.warning("♻️ Regenerando JWT...")
@@ -101,10 +104,9 @@ class JWTGenerator:
 
 
 # ---------------------------------------------------------
-# CRIAR E MANTER SESSÃO SNOWFLAKE COM RENOVAÇÃO DE JWT
+# CRIA E MANTÉM A SESSÃO SNOWFLAKE
 # ---------------------------------------------------------
 def create_session():
-    """Cria uma sessão Snowflake com token JWT válido."""
     try:
         if "jwt_gen" not in st.session_state:
             st.session_state.jwt_gen = JWTGenerator(ACCOUNT, USER, RSA_KEY_PATH)
@@ -125,7 +127,6 @@ def create_session():
 
         st.session_state.session = session
         return session
-
     except Exception as e:
         st.error(f"❌ Falha ao conectar ao Snowflake: {e}")
         st.stop()
@@ -138,12 +139,12 @@ if "session" not in st.session_state:
     session = create_session()
 else:
     session = st.session_state.session
-    # se a sessão for perdida, recria
     try:
         session.sql("SELECT 1").collect()
     except Exception:
         st.warning("⚠️ Sessão expirada. Recriando conexão...")
         session = create_session()
+
 if "jwt_gen" in st.session_state:
     jwt_gen = st.session_state.jwt_gen
     st.sidebar.markdown("### 🔐 Status do Token")
@@ -191,18 +192,16 @@ if prompt:
 
     with st.spinner(f"Consultando agente {agent_name}..."):
         try:
-            session = st.session_state.session  # sempre usa a sessão ativa
             query = f"""
-            SELECT SNOWFLAKE.CORTEX.COMPLETE(
-                '{agent_name}',
-                '{prompt}'
-            ) AS RESPOSTA;
-        """
+                SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                    '{agent_name}',
+                    '{prompt}'
+                ) AS RESPOSTA;
+            """
             result = session.sql(query).collect()
             resposta = result[0]["RESPOSTA"] if result else "⚠️ Nenhuma resposta retornada."
         except Exception as e:
-                resposta = f"⚠️ Erro ao consultar o agente: {e}"
-
+            resposta = f"⚠️ Erro ao consultar o agente: {e}"
 
     st.chat_message("assistant").write(resposta)
     st.session_state.messages.append({"role": "assistant", "content": resposta})
