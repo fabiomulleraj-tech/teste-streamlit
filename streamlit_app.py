@@ -1,9 +1,9 @@
 import streamlit as st
 import requests
 import time
+import json
 import base64
 import hashlib
-import json
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
@@ -12,11 +12,11 @@ from cryptography.hazmat.backends import default_backend
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
 st.set_page_config(page_title="Snowflake Cortex Chat", page_icon="❄️", layout="wide")
-st.title("🤖 Chat com Agentes de IA - Snowflake Cortex")
+st.title("🤖 Fale com o Betinho")
 
 ACCOUNT = "A6108453355571-ALMEIDAJR"
 USER = "TEAMS_INTEGRATION"
-MODEL = "snowflake-arctic"
+MODEL = "claude-3-5-sonnet"
 
 AGENTS = {
     "🏬 Vendas e Shoppings (VS)": {"agent": "AJ_VS", "semantic_model": "AJ_SEMANTIC_VIEW_VS"},
@@ -26,9 +26,8 @@ AGENTS = {
 
 ENDPOINT = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents"
 
-
 # ---------------------------------------------------------
-# CLASSE JWTGenerator - idêntica ao Node.js (jsonwebtoken)
+# CLASSE JWTGenerator - 100% compatível com jwtGenerator.js
 # ---------------------------------------------------------
 class JWTGenerator:
     def __init__(self, account, user, key_path=None):
@@ -39,7 +38,7 @@ class JWTGenerator:
         self.renewal_delay = self.lifetime - 300
 
         # ---------------------------------------------------------
-        # 1️⃣ Carrega chave privada
+        # 1️⃣ Carrega a chave privada (do st.secrets ou arquivo)
         # ---------------------------------------------------------
         key_text = None
         if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
@@ -55,7 +54,7 @@ class JWTGenerator:
                 key_text = f.read()
             st.sidebar.info(f"🔑 Chave lida do arquivo: {key_path}")
         else:
-            raise ValueError("Nenhuma chave privada encontrada.")
+            raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
 
         self.private_key_pem = key_text.encode("utf-8")
         self.private_key = serialization.load_pem_private_key(
@@ -63,11 +62,19 @@ class JWTGenerator:
         )
         st.sidebar.success("✅ Chave privada decodificada com sucesso.")
 
+        # ---------------------------------------------------------
+        # 2️⃣ Gera o fingerprint (SPKI DER → SHA256 Base64)
+        # ---------------------------------------------------------
         self.public_fingerprint = self._calculate_public_key_fingerprint()
+        st.sidebar.write(f"**Fingerprint:** `{self.public_fingerprint}`")
+
+        # ---------------------------------------------------------
+        # 3️⃣ Gera o primeiro JWT
+        # ---------------------------------------------------------
         self.generate_token()
 
     # ---------------------------------------------------------
-    # Cálculo idêntico ao Node.js -> crypto.createPublicKey + export SPKI DER
+    # Cálculo idêntico ao Node: crypto.createPublicKey + export { type: "spki", format: "der" }
     # ---------------------------------------------------------
     def _calculate_public_key_fingerprint(self):
         public_key = self.private_key.public_key()
@@ -80,7 +87,7 @@ class JWTGenerator:
         return f"SHA256:{fingerprint}"
 
     # ---------------------------------------------------------
-    # Geração do JWT idêntica ao Node.js
+    # Geração do JWT idêntica ao jwtGenerator.js
     # ---------------------------------------------------------
     def generate_token(self):
         now = int(time.time())
@@ -93,7 +100,6 @@ class JWTGenerator:
 
         headers = {"alg": "RS256", "typ": "JWT"}
 
-        # Base64URL sem padding (=)
         def b64url(data: bytes) -> str:
             return base64.urlsafe_b64encode(data).decode().rstrip("=")
 
@@ -105,18 +111,18 @@ class JWTGenerator:
         signature_b64 = b64url(signature)
         token = f"{header_b64}.{payload_b64}.{signature_b64}"
 
-        # Mostra token completo no sidebar
+        # Debug visual completo
         st.sidebar.write("### 🧩 JWT Debug")
         st.sidebar.write(f"**iss:** {payload['iss']}")
         st.sidebar.write(f"**sub:** {payload['sub']}")
-        st.sidebar.write(f"**Fingerprint:** {self.public_fingerprint}")
-        st.sidebar.text_area("🪪 Token completo (JWT)", token, height=150)
+        st.sidebar.text_area("🪪 Token JWT Gerado", token, height=150)
 
         self.token = token
         self.renew_time = now + self.renewal_delay
         st.sidebar.success("✅ JWT gerado com sucesso.")
         return token
 
+    # ---------------------------------------------------------
     def get_token(self):
         now = int(time.time())
         if now >= self.renew_time:
@@ -126,7 +132,7 @@ class JWTGenerator:
 
 
 # ---------------------------------------------------------
-# ENVIA PROMPT PARA O AGENTE
+# FUNÇÃO DE ENVIO AO CORTEX
 # ---------------------------------------------------------
 def send_prompt_to_cortex(prompt, model, agent, semantic_model, jwt_token):
     headers = {"Authorization": f"Bearer {jwt_token}"}
@@ -140,11 +146,11 @@ def send_prompt_to_cortex(prompt, model, agent, semantic_model, jwt_token):
             outputs = data.get("outputs", [])
             if outputs and "text" in outputs[0]:
                 return outputs[0]["text"]
-            return str(data)
+            return json.dumps(data, indent=2)
         else:
             return f"⚠️ Erro HTTP {resp.status_code}: {resp.text}"
     except Exception as e:
-        return f"❌ Erro na requisição ao Cortex Agent: {e}"
+        return f"❌ Erro ao consultar o Cortex Agent: {e}"
 
 
 # ---------------------------------------------------------
