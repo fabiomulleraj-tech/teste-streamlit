@@ -38,29 +38,45 @@ class JWTGenerator:
         # 🔑 tenta carregar a chave do secrets primeiro
         if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
             key_text = st.secrets["rsa"]["private_key"]
-            key_text = key_text.replace("\\n", "\n").strip()
+
+            # 🧹 Normaliza quebras de linha e remove caracteres ocultos
+            key_text = key_text.replace("\r", "").replace("\\n", "\n").strip()
             key_text = "\n".join(line.strip() for line in key_text.splitlines() if line.strip())
+
+            # 🔒 Garante delimitadores válidos
             if not key_text.startswith("-----BEGIN PRIVATE KEY-----"):
                 key_text = "-----BEGIN PRIVATE KEY-----\n" + key_text
             if not key_text.endswith("-----END PRIVATE KEY-----"):
                 key_text = key_text + "\n-----END PRIVATE KEY-----"
-            self.private_key_pem = key_text.encode("utf-8")
+
+            # 🔧 Converte para bytes limpos e força UTF-8 sem BOM
+            self.private_key_pem = key_text.encode("utf-8").strip()
             st.sidebar.success("🔐 Chave carregada do st.secrets")
         else:
             raise ValueError("Nenhuma chave privada encontrada (nem em secrets, nem em arquivo).")
 
-        # Decodifica chave PEM
+        # ----------------------------- #
+        # Decodifica chave PEM em objeto
+        # ----------------------------- #
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.backends import default_backend
+
         try:
             self.private_key = serialization.load_pem_private_key(
-                self.private_key_pem,
+                data=self.private_key_pem,
                 password=None,
-                backend=default_backend(),
+                backend=default_backend()
             )
+
+            # 🔎 Verifica se realmente carregou um objeto válido
+            if self.private_key is None:
+                raise ValueError("load_pem_private_key retornou None — formato PEM inválido.")
+            else:
+                st.sidebar.write("✅ Chave privada decodificada com sucesso.")
         except Exception as e:
             st.error(f"Erro ao decodificar chave privada: {e}")
             raise
+
 
         # Calcula fingerprint
         import hashlib, base64
