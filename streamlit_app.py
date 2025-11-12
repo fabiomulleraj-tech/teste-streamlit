@@ -137,7 +137,17 @@ class JWTGenerator:
 def send_prompt_to_cortex(prompt, model, agent, semantic_model, jwt_token):
     headers = {"Authorization": f"Bearer {jwt_token}"}
     url = f"{ENDPOINT}/{agent}:run"
-    body = {"inputs": {"question": prompt, "semantic_model": semantic_model}}
+
+    # ❗ Formato correto esperado pela API Snowflake Cortex
+    body = {
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "model": model,
+        "parameters": {
+            "semantic_model": semantic_model
+        }
+    }
 
     try:
         resp = requests.post(url, headers=headers, json=body, timeout=120)
