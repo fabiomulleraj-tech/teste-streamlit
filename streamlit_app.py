@@ -37,32 +37,22 @@ ENDPOINT = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE
 # ---------------------------------------------------------
 class JWTGenerator:
     def __init__(self, account, user, key_path=None):
+        ...
         self.account = self._prepare_account_name(account)
         self.user = user.upper()
-        self.lifetime = 3600  # 1h
-        self.renewal_delay = self.lifetime - 300
-        self.token = None
-        self.renew_time = 0
-        self.private_key_pem = self._load_key()
+        self.qualified_username = f"{self.account}.{self.user}"
+        ...
+        self.private_key_pem = key_text.encode("utf-8")
         self.private_key = serialization.load_pem_private_key(
-            self.private_key_pem.encode(), password=None, backend=default_backend()
+            self.private_key_pem, password=None, backend=default_backend()
         )
         self.public_fingerprint = self._calc_fingerprint()
         self.generate_token()
 
-    def _load_key(self):
-        if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
-            key_text = st.secrets["rsa"]["private_key"]
-            key_text = key_text.replace("\r", "").replace("\\n", "\n").strip()
-            if not key_text.startswith("-----BEGIN"):
-                key_text = "-----BEGIN PRIVATE KEY-----\n" + key_text
-            if not key_text.endswith("-----END PRIVATE KEY-----"):
-                key_text += "\n-----END PRIVATE KEY-----"
-            st.sidebar.success("🔐 Chave carregada do st.secrets")
-            return key_text
-        raise ValueError("❌ Nenhuma chave RSA encontrada no st.secrets")
+    def _prepare_account_name(self, raw_account):
+        return raw_account.split("-")[0].split(".")[0].upper()
 
-    def _calculate_public_key_fingerprint(self):
+    def _calc_fingerprint(self):
         public_key = serialization.load_pem_private_key(
             self.private_key_pem, password=None, backend=default_backend()
         ).public_key()
@@ -70,17 +60,14 @@ class JWTGenerator:
             serialization.Encoding.DER,
             serialization.PublicFormat.SubjectPublicKeyInfo
         )
-        return f"SHA256:{base64.b64encode(hashlib.sha256(der).digest()).decode()}"
+        sha256 = hashlib.sha256(der).digest()
+        return f"SHA256:{base64.b64encode(sha256).decode()}"
 
-    
-    def _prepare_account_name(self, raw_account):
-        return raw_account.split("-")[0].split(".")[0].upper()
-    
     def generate_token(self):
         now = int(time.time())
         payload = {
-            "iss": f"{self.account}.{self.user}.{self.public_fingerprint}",
-            "sub": f"{self.account}.{self.user}",
+            "iss": f"{self.qualified_username}.{self.public_fingerprint}",
+            "sub": self.qualified_username,
             "iat": now,
             "exp": now + self.lifetime,
         }
@@ -95,6 +82,7 @@ class JWTGenerator:
             st.sidebar.warning("♻️ Renovando JWT...")
             self.generate_token()
         return self.token
+
 
 
 # ---------------------------------------------------------
