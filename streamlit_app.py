@@ -34,8 +34,18 @@ class JWTGenerator:
 
         # 🔑 tenta carregar a chave do secrets primeiro
         if "rsa" in st.secrets and "private_key" in st.secrets["rsa"]:
-            self.private_key_pem = st.secrets["rsa"]["private_key"].encode()
+            key_text = st.secrets["rsa"]["private_key"]
+
+            # 🧹 normaliza o texto da chave: remove espaços, garante quebras de linha reais
+            key_text = key_text.replace("\\n", "\n").strip()
+            if not key_text.startswith("-----BEGIN"):
+                key_text = "-----BEGIN PRIVATE KEY-----\n" + key_text
+            if not key_text.endswith("-----END PRIVATE KEY-----"):
+                key_text = key_text + "\n-----END PRIVATE KEY-----"
+
+            self.private_key_pem = key_text.encode()
             st.sidebar.success("🔐 Chave carregada do st.secrets")
+
         elif key_path:
             self.private_key_pem = open(key_path, "rb").read()
             st.sidebar.info(f"🔑 Chave lida de arquivo: {key_path}")
@@ -45,22 +55,14 @@ class JWTGenerator:
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.backends import default_backend
 
-        self.private_key = serialization.load_pem_private_key(
-            self.private_key_pem, password=None, backend=default_backend()
-        )
+        try:
+            self.private_key = serialization.load_pem_private_key(
+                self.private_key_pem, password=None, backend=default_backend()
+            )
+        except Exception as e:
+            st.error(f"Erro ao decodificar chave privada: {e}")
+            raise
 
-        import hashlib, base64
-        public_key = self.private_key.public_key()
-        der_pub = public_key.public_bytes(
-            encoding=serialization.Encoding.DER,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
-        sha256_digest = hashlib.sha256(der_pub).digest()
-        self.public_fingerprint = f"SHA256:{base64.b64encode(sha256_digest).decode('utf-8')}"
-
-        self.token = None
-        self.renew_time = 0
-        self.generate_token()
 
     # 🔧 método que estava faltando
     def _prepare_account_name(self, raw_account):
