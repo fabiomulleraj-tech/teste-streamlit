@@ -80,7 +80,7 @@ if "auth_user" not in st.session_state:
 user_email = st.session_state.auth_user["email"]
 
 # ---------------------------------------------------------
-# HISTÓRICO DE CHAT POR USUÁRIO
+# HISTÓRICO DE CHAT POR USUÁRIO + TÍTULOS
 # ---------------------------------------------------------
 def new_chat_id():
     return f"chat_{int(time.time())}"
@@ -88,32 +88,43 @@ def new_chat_id():
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = {}
 
+if "chat_titles" not in st.session_state:
+    st.session_state.chat_titles = {}  # título por chat
+
 if user_email not in st.session_state.chat_history:
     st.session_state.chat_history[user_email] = {}
+
+if user_email not in st.session_state.chat_titles:
+    st.session_state.chat_titles[user_email] = {}
 
 if "current_chat_id" not in st.session_state:
     cid = new_chat_id()
     st.session_state.current_chat_id = cid
     st.session_state.chat_history[user_email][cid] = []
+    st.session_state.chat_titles[user_email][cid] = "Novo Chat"
 
 chat_id = st.session_state.current_chat_id
 messages = st.session_state.chat_history[user_email][chat_id]
 
 # ---------------------------------------------------------
-# SIDEBAR + BOTÃO NOVA CONVERSA + LISTA DE CONVERSAS
+# SIDEBAR + NOVA CONVERSA + LISTA DE CONVERSAS
 # ---------------------------------------------------------
-#st.sidebar.success(f"👤 {st.session_state.auth_user['name']}")
+st.sidebar.header("👤 Usuário:")
+st.sidebar.write(f"{st.session_state.auth_user['name']}")
+st.sidebar.write(f"({st.session_state.auth_user['email']})")
 
 if st.sidebar.button("➕ Nova conversa"):
     cid = new_chat_id()
     st.session_state.current_chat_id = cid
     st.session_state.chat_history[user_email][cid] = []
+    st.session_state.chat_titles[user_email][cid] = "Novo Chat"
     st.rerun()
 
 st.sidebar.markdown("### 💬 Suas conversas:")
 
-for cid in st.session_state.chat_history[user_email]:
-    if st.sidebar.button(cid):
+for cid, title in st.session_state.chat_titles[user_email].items():
+    label = f"🗨️ {title}"
+    if st.sidebar.button(label, key=f"chatbtn_{cid}"):
         st.session_state.current_chat_id = cid
         st.rerun()
 
@@ -262,7 +273,7 @@ def send_prompt_to_cortex(prompt, agent, jwt_token, debug=False):
                             full_text += data["output"].get("text", "")
                             chat_box.markdown(full_text)
 
-                except Exception as e:
+                except Exception:
                     pass
 
             thinking_box.empty()
@@ -287,15 +298,10 @@ st.sidebar.header("⚙️ Selecione o agente")
 selected_agent = st.sidebar.selectbox(
     "Selecione o agente de IA:",
     list(AGENTS.keys()),
-    label_visibility="collapsed"  # Oculta o texto, mas mantém acessibilidade
+    label_visibility="collapsed"
 )
 agent_cfg = AGENTS[selected_agent]
 agent_name = agent_cfg["agent"]
-semantic_model = agent_cfg["semantic_model"]
-st.sidebar.markdown("---")
-st.sidebar.header("👤 Usuário:")
-st.sidebar.write(f"{st.session_state.auth_user['name']}")
-st.sidebar.write(f"({st.session_state.auth_user['email']})")
 
 # ---------------------------------------------------------
 # RENDERIZA O HISTÓRICO
@@ -304,11 +310,16 @@ for msg in messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
 # ---------------------------------------------------------
-# INPUT DO USUÁRIO
+# INPUT DO USUÁRIO + RENOMEAÇÃO DO CHAT
 # ---------------------------------------------------------
 prompt = st.chat_input("Digite sua pergunta...")
 
 if prompt:
+
+    # Se é a primeira mensagem, o título vira a pergunta
+    if len(st.session_state.chat_history[user_email][chat_id]) == 0:
+        st.session_state.chat_titles[user_email][chat_id] = prompt[:50]
+
     st.session_state.chat_history[user_email][chat_id].append(
         {"role": "user", "content": prompt}
     )
