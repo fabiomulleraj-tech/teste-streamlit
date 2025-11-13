@@ -22,7 +22,7 @@ AZ_CLIENT_SECRET = st.secrets["azure"]["CLIENT_SECRET"]
 AZ_REDIRECT = st.secrets["azure"]["redirect_uri"]   # https://testeajai.streamlit.app/redirect
 
 AUTHORITY = f"https://login.microsoftonline.com/{AZ_TENANT_ID}"
-SCOPES = ["openid", "profile", "email"]
+SCOPES = []
 
 def build_msal_app():
     return msal.ConfidentialClientApplication(
@@ -56,7 +56,7 @@ if "auth_user" not in st.session_state:
         app = build_msal_app()
         result = app.acquire_token_by_authorization_code(
             code,
-            scopes=SCOPES,
+            scopes=[],
             redirect_uri=AZ_REDIRECT
         )
 
