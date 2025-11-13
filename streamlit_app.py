@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
+st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 # ---------------------------------------------------------
 # AUTENTICAÇÃO VIA AZURE AD
 # ---------------------------------------------------------
@@ -131,7 +132,7 @@ for cid, title in st.session_state.chat_titles[user_email].items():
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
-st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
+
 
 st.title("💁‍♂️ Pergunte ao Bentinho")
 st.caption("Não esqueça de selecionar a área que deseja a informação ao lado 👈")
