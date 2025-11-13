@@ -48,7 +48,8 @@ if "auth_user" not in st.session_state:
         st.markdown("Clique abaixo para autenticar com sua conta corporativa AJ.")
 
         login_url = build_auth_url()
-        st.markdown(f"[⭐ Entrar com Azure AD]({login_url})")
+        if st.button("⭐ Entrar com Azure AD"):
+            st.write(f"<meta http-equiv='refresh' content='0; url={login_url}'>", unsafe_allow_html=True)
         st.stop()
     else:
         code = query_params["code"]
