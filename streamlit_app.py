@@ -12,12 +12,12 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
-CLIENT_ID = st.secrets["CLIENT_ID"]
-CLIENT_SECRET = st.secrets["CLIENT_SECRET"]
-TENANT_ID = st.secrets["TENANT_ID"]
+CLIENT_ID = st.secrets["rsa"]["CLIENT_ID"]
+CLIENT_SECRET = st.secrets["rsa"]["CLIENT_SECRET"]
+TENANT_ID = st.secrets["rsa"]["TENANT_ID"]
 REDIRECT_URI = "https://testeajai.streamlit.app/"
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-SCOPES = st.secrets["SCOPES"]
+SCOPES = st.secrets["rsa"]["SCOPES"]
 ALLOWED_DOMAIN = "@almeidajunior.com.br"
 
 # ---------------------------------------------------------
