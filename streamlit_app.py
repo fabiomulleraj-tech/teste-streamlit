@@ -17,7 +17,7 @@ from cryptography.hazmat.backends import default_backend
 # ---------------------------------------------------------
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
-st.title("🤖 Fale com o Bentinho")
+st.title("💁‍♂️ Pergunte ao Bentinho")
 
 ACCOUNT = "A6108453355571-ALMEIDAJR"
 USER = "TEAMS_INTEGRATION"
