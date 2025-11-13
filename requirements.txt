@@ -6,4 +6,3 @@ PyJWT
 requests
 sseclient-py
 msal
-urllib.parse
