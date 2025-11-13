@@ -73,6 +73,12 @@ if "auth_user" not in st.session_state:
 
     # Retorno com ?code=…
     else:
+        # Se o navegador retornou com ?code= mas o PKCE verifier não existe,
+        # reinicie o fluxo corretamente.
+        if "pkce_verifier" not in st.session_state:
+            st.warning("Sessão expirada. Reiniciando login...")
+            st.query_params.clear()
+            st.rerun()
         code = query_params["code"]
 
         data = {
