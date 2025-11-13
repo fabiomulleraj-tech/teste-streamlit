@@ -80,7 +80,6 @@ if "auth_user" not in st.session_state:
 # USUÁRIO LOGADO
 # -----------------------------------------------------
 user = st.session_state.auth_user
-st.sidebar.success(f"👤 {user['name']} ({user['email']})")
 
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
@@ -315,6 +314,7 @@ agent_cfg = AGENTS[selected_agent]
 agent_name = agent_cfg["agent"]
 semantic_model = agent_cfg["semantic_model"]
 st.sidebar.markdown("---")
+st.sidebar.write(f"👤 {user['name']} ({user['email']})")
 #st.sidebar.write(f"**Usuário:** {USER}")
 #st.sidebar.write(f"**Conta:** {ACCOUNT}")
 #st.sidebar.write(f"**Renovação:** {time.strftime('%H:%M:%S', time.localtime(jwt_gen.renew_time))}")
