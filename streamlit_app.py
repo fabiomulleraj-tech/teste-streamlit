@@ -41,14 +41,17 @@ def generate_pkce_challenge(verifier):
 
 
 # ---------------------------------------------------------
-# FLUXO DE LOGIN PKCE
+# FLUXO DE LOGIN COM PKCE
 # ---------------------------------------------------------
 query_params = st.query_params
 
 if "auth_user" not in st.session_state:
 
-    # Usuário ainda não clicou em login
-    if "code" not in query_params:
+    # GET CODE SAFELY (Streamlit always returns lists)
+    code = query_params.get("code", [None])[0]
+
+    # 1️⃣ Usuário ainda NÃO clicou em Login
+    if code is None:
 
         verifier = generate_pkce_verifier()
         challenge = generate_pkce_challenge(verifier)
@@ -67,19 +70,17 @@ if "auth_user" not in st.session_state:
 
         st.title("🔐 Login com Azure AD")
         st.markdown("Clique abaixo para autenticar.")
-
         st.link_button("⭐ Entrar com Azure AD", login_url)
         st.stop()
 
-    # Retorno com ?code=…
+    # 2️⃣ Retorno com ?code=
     else:
-        # Se o navegador retornou com ?code= mas o PKCE verifier não existe,
-        # reinicie o fluxo corretamente.
+
+        # Sessão expirada
         if "pkce_verifier" not in st.session_state:
             st.warning("Sessão expirada. Reiniciando login...")
             st.query_params.clear()
             st.rerun()
-        code = query_params["code"]
 
         data = {
             "grant_type": "authorization_code",
@@ -96,7 +97,7 @@ if "auth_user" not in st.session_state:
 
             payload = token_data["id_token"].split(".")[1]
             payload += "=" * (-len(payload) % 4)
-            claims = json.loads(base64.urlsafe_b64decode(payload.encode()))
+            claims = json.loads(base64.urlsafe_b64decode(payload))
 
             st.session_state.auth_user = {
                 "name": claims.get("name"),
@@ -104,9 +105,12 @@ if "auth_user" not in st.session_state:
                 "oid": claims.get("oid"),
             }
 
+            # LIMPAR code da URL
+            st.query_params.clear()
+
             st.rerun()
         else:
-            st.error("❌ Erro ao trocar o code por token no Azure AD")
+            st.error("❌ Erro ao trocar o code por token")
             st.write(token_data)
             st.stop()
 
