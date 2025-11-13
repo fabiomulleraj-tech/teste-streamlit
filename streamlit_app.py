@@ -17,7 +17,7 @@ CLIENT_SECRET = st.secrets["rsa"]["CLIENT_SECRET"]
 TENANT_ID = st.secrets["rsa"]["TENANT_ID"]
 REDIRECT_URI = "https://testeajai.streamlit.app/"
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-SCOPES = st.secrets["rsa"]["SCOPES"]
+SCOPES = ["User.Read"]
 ALLOWED_DOMAIN = "@almeidajunior.com.br"
 
 # ---------------------------------------------------------
