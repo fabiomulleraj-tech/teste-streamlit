@@ -68,11 +68,7 @@ if "auth_user" not in st.session_state:
         st.title("🔐 Login com Azure AD")
         st.markdown("Clique abaixo para autenticar.")
 
-        if st.button("⭐ Entrar com Azure AD"):
-            st.markdown(
-                f"<script>window.location.href='{login_url}';</script>",
-                unsafe_allow_html=True,
-            )
+        st.link_button("⭐ Entrar com Azure AD", login_url)
         st.stop()
 
     # Retorno com ?code=…
