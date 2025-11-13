@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
-import json
 import time
+import json
 import base64
 import hashlib
 import os
@@ -9,15 +9,11 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
-# ---------------------------------------------------------
-# CONFIGURAÇÃO INICIAL STREAMLIT
-# ---------------------------------------------------------
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
-
-# ---------------------------------------------------------
-# CONFIGURAÇÕES DO AZURE AD (PKCE)
-# ---------------------------------------------------------
+# -----------------------------------------------------
+# AUTENTICAÇÃO VIA AZURE AD — PKCE
+# -----------------------------------------------------
 AZ_CLIENT_ID = st.secrets["azure"]["client_id"]
 AZ_TENANT_ID = st.secrets["azure"]["tenant_id"]
 AZ_REDIRECT = st.secrets["azure"]["redirect_uri"]
@@ -27,34 +23,30 @@ AUTH_URL = f"{AUTHORITY}/oauth2/v2.0/authorize"
 TOKEN_URL = f"{AUTHORITY}/oauth2/v2.0/token"
 SCOPES = ["openid", "profile", "email"]
 
-
-# ---------------------------------------------------------
-# PKCE – funções auxiliares
-# ---------------------------------------------------------
+# -----------------------------------------------------
+# PKCE FUNCTIONS
+# -----------------------------------------------------
 def generate_pkce_verifier():
-    return base64.urlsafe_b64encode(os.urandom(40)).rstrip(b"=").decode("utf-8")
-
+    return base64.urlsafe_b64encode(os.urandom(40)).rstrip(b"=").decode()
 
 def generate_pkce_challenge(verifier):
-    digest = hashlib.sha256(verifier.encode("utf-8")).digest()
-    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("utf-8")
+    digest = hashlib.sha256(verifier.encode()).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
 
-
-# ---------------------------------------------------------
-# FLUXO DE LOGIN COM PKCE
-# ---------------------------------------------------------
+# -----------------------------------------------------
+# LOGIN FLOW — PKCE ONLY
+# -----------------------------------------------------
 query_params = st.query_params
+code = query_params.get("code", [None])[0]
 
 if "auth_user" not in st.session_state:
 
-    # GET CODE SAFELY (Streamlit always returns lists)
-    code = query_params.get("code", [None])[0]
-
-    # 1️⃣ Usuário ainda NÃO clicou em Login
+    # Primeiro acesso — exibe botão de login
     if code is None:
 
         verifier = generate_pkce_verifier()
         challenge = generate_pkce_challenge(verifier)
+
         st.session_state.pkce_verifier = verifier
 
         login_url = (
@@ -69,16 +61,18 @@ if "auth_user" not in st.session_state:
         )
 
         st.title("🔐 Login com Azure AD")
-        st.markdown("Clique abaixo para autenticar.")
-        st.link_button("⭐ Entrar com Azure AD", login_url)
+        st.markdown(
+            f'<a href="{login_url}" target="_self">'
+            f'<button style="font-size:20px;padding:10px 20px;">⭐ Entrar com Azure AD</button>'
+            f'</a>',
+            unsafe_allow_html=True
+        )
         st.stop()
 
-    # 2️⃣ Retorno com ?code=
+    # Retorno do Azure com /?code=123
     else:
-
-        # Sessão expirada
         if "pkce_verifier" not in st.session_state:
-            st.warning("Sessão expirada. Reiniciando login...")
+            st.warning("Sessão expirada. Reinicie o login.")
             st.query_params.clear()
             st.rerun()
 
@@ -93,27 +87,25 @@ if "auth_user" not in st.session_state:
         resp = requests.post(TOKEN_URL, data=data)
         token_data = resp.json()
 
-        if "id_token" in token_data:
-
-            payload = token_data["id_token"].split(".")[1]
-            payload += "=" * (-len(payload) % 4)
-            claims = json.loads(base64.urlsafe_b64decode(payload))
-
-            st.session_state.auth_user = {
-                "name": claims.get("name"),
-                "email": claims.get("preferred_username"),
-                "oid": claims.get("oid"),
-            }
-
-            # LIMPAR code da URL
-            st.query_params.clear()
-
-            st.rerun()
-        else:
-            st.error("❌ Erro ao trocar o code por token")
+        if "id_token" not in token_data:
+            st.error("❌ Erro ao obter token do Azure AD")
             st.write(token_data)
             st.stop()
 
+        payload = token_data["id_token"].split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+
+        st.session_state.auth_user = {
+            "name": claims.get("name"),
+            "email": claims.get("preferred_username"),
+            "oid": claims.get("oid"),
+        }
+
+        # Limpa parâmetros da URL
+        st.query_params.clear()
+
+        st.rerun()
 
 # ---------------------------------------------------------
 # USUÁRIO LOGADO
