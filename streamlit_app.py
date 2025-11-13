@@ -9,7 +9,6 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
-st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 # ---------------------------------------------------------
 # Forçar saída de iframe (Azure AD exige top-level window)
 # ---------------------------------------------------------
@@ -20,6 +19,10 @@ if (window.top !== window.self) {
 }
 </script>
 """, unsafe_allow_html=True)
+
+st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
+
+
 # -----------------------------------------------------
 # AUTENTICAÇÃO VIA AZURE AD — PKCE
 # -----------------------------------------------------
