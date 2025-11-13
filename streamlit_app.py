@@ -102,7 +102,7 @@ messages = st.session_state.chat_history[user_email][chat_id]
 # ---------------------------------------------------------
 # SIDEBAR + BOTÃO NOVA CONVERSA + LISTA DE CONVERSAS
 # ---------------------------------------------------------
-st.sidebar.success(f"👤 {st.session_state.auth_user['name']}")
+#st.sidebar.success(f"👤 {st.session_state.auth_user['name']}")
 
 if st.sidebar.button("➕ Nova conversa"):
     cid = new_chat_id()
@@ -294,8 +294,8 @@ agent_name = agent_cfg["agent"]
 semantic_model = agent_cfg["semantic_model"]
 st.sidebar.markdown("---")
 st.sidebar.header("👤 Usuário:")
-st.sidebar.write(f"{user['name']}")
-st.sidebar.write(f"({user['email']})")
+st.sidebar.write(f"{st.session_state.auth_user['name']}")
+st.sidebar.write(f"({st.session_state.auth_user['email']})")
 
 # ---------------------------------------------------------
 # RENDERIZA O HISTÓRICO
