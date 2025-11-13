@@ -16,10 +16,10 @@ from cryptography.hazmat.backends import default_backend
 # -----------------------------------------------------
 # AUTENTICAÇÃO VIA AZURE AD PARA STREAMLIT CLOUD
 # -----------------------------------------------------
-AZ_CLIENT_ID = st.secrets["azure"]["CLIENT_ID"]
-AZ_TENANT_ID = st.secrets["azure"]["TENANT_ID"]
-AZ_CLIENT_SECRET = st.secrets["azure"]["CLIENT_SECRET"]
-AZ_REDIRECT = st.secrets["azure"]["redirect_uri"]   # https://testeajai.streamlit.app/redirect
+AZ_CLIENT_ID = st.secrets["azure"]["client_id"]                         
+AZ_TENANT_ID = st.secrets["azure"]["tenant_id"]                         
+AZ_CLIENT_SECRET = st.secrets["azure"]["client_secret"]                 
+AZ_REDIRECT = st.secrets["azure"]["redirect_uri"]    # https://testeajai.streamlit.app/redirect
 
 AUTHORITY = f"https://login.microsoftonline.com/{AZ_TENANT_ID}"
 SCOPES = []
