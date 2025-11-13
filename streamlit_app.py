@@ -75,7 +75,7 @@ if "auth_user" not in st.session_state:
 
     # 2. Retorno do Azure com ?code=
     else:
-        code = query_params["code"][0]
+        code = query_params["code"]
 
         # Troca o code pelo token usando PKCE
         data = {
