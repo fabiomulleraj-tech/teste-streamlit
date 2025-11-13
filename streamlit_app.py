@@ -84,9 +84,15 @@ if "auth_user" not in st.session_state:
     # Retorno do Azure com /?code=123
     else:
         if "pkce_verifier" not in st.session_state:
-            st.warning("Sessão expirada. Reinicie o login.")
-            st.query_params.clear()
-            st.rerun()
+            st.warning("Sessão expirada. Reiniciando login...")
+
+            st.markdown("""
+                <script>
+                window.location.href = window.location.origin + window.location.pathname;
+                </script>
+            """, unsafe_allow_html=True)
+
+        st.stop()
 
         data = {
             "grant_type": "authorization_code",
@@ -115,7 +121,12 @@ if "auth_user" not in st.session_state:
         }
 
         # Limpa parâmetros da URL
-        st.query_params.clear()
+        st.markdown("""
+            <script>
+            window.location.href = window.location.origin + window.location.pathname;
+            </script>
+            """, unsafe_allow_html=True)
+        st.stop()
 
         st.rerun()
 
