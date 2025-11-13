@@ -12,6 +12,28 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
+USERS = st.secrets["auth"]
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.title("🔐 Login necessário")
+    username = st.text_input("Usuário")
+    password = st.text_input("Senha", type="password")
+
+    if st.button("Entrar"):
+        if username in USERS and USERS[username] == password:
+            st.session_state.logged_in = True
+            st.session_state.user = username
+            st.success(f"✅ Bem-vindo, {username}!")
+            st.rerun()
+        else:
+            st.error("❌ Usuário ou senha inválidos.")
+    st.stop()
+
+st.sidebar.success(f"👤 Usuário: {st.session_state.user}")
+
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
