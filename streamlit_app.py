@@ -33,7 +33,7 @@ def build_msal_app():
 
 def build_auth_url():
     return build_msal_app().get_authorization_request_url(
-        scopes=SCOPES,
+        scopes=[],                 # ❗ Não enviar scopes — MSAL proíbe
         redirect_uri=AZ_REDIRECT
     )
 
