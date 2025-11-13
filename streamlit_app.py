@@ -6,63 +6,94 @@ import base64
 import hashlib
 import sseclient
 import io
-import msal
 import urllib.parse
+import os
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
+st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
 # -----------------------------------------------------
 # AUTENTICAÇÃO VIA AZURE AD PARA STREAMLIT CLOUD
 # -----------------------------------------------------
 AZ_CLIENT_ID = st.secrets["azure"]["client_id"]                         
-AZ_TENANT_ID = st.secrets["azure"]["tenant_id"]                         
-AZ_CLIENT_SECRET = st.secrets["azure"]["client_secret"]                 
+AZ_TENANT_ID = st.secrets["azure"]["tenant_id"]                                         
 AZ_REDIRECT = st.secrets["azure"]["redirect_uri"]    # https://testeajai.streamlit.app/redirect
 
 AUTHORITY = f"https://login.microsoftonline.com/{AZ_TENANT_ID}"
-SCOPES = []
+AUTH_URL = f"{AUTHORITY}/oauth2/v2.0/authorize"
+TOKEN_URL = f"{AUTHORITY}/oauth2/v2.0/token"
+SCOPES = ["openid", "profile", "email"]
 
-def build_msal_app():
-    return msal.ConfidentialClientApplication(
-        client_id=AZ_CLIENT_ID,
-        authority=AUTHORITY,
-        client_credential=AZ_CLIENT_SECRET,
-    )
+# ---------------------------------------------------------
+# FUNÇÕES PKCE
+# ---------------------------------------------------------
+def generate_pkce_verifier():
+    return base64.urlsafe_b64encode(os.urandom(40)).rstrip(b"=").decode("utf-8")
 
-def build_auth_url():
-    return build_msal_app().get_authorization_request_url(
-        scopes=[],                 # ❗ Não enviar scopes — MSAL proíbe
-        redirect_uri=AZ_REDIRECT
-    )
+def generate_pkce_challenge(verifier):
+    digest = hashlib.sha256(verifier.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("utf-8")
 
-# -----------------------------------------------------
-# LOGIN FLOW CONTROL
-# -----------------------------------------------------
-query_params = st.query_params
+# ---------------------------------------------------------
+# FLUXO DE LOGIN COM PKCE
+# ---------------------------------------------------------
+query_params = st.experimental_get_query_params()
 
 if "auth_user" not in st.session_state:
+
+    # 1. Usuário ainda NÃO clicou em Login
     if "code" not in query_params:
-        st.title("🔐 Login com Azure AD")
-        st.markdown("Clique abaixo para autenticar com sua conta corporativa AJ.")
 
-        login_url = build_auth_url()
-        if st.button("⭐ Entrar com Azure AD"):
-            st.write(f"<meta http-equiv='refresh' content='0; url={login_url}'>", unsafe_allow_html=True)
-        st.stop()
-    else:
-        code = query_params["code"]
+        # gerar PKCE
+        verifier = generate_pkce_verifier()
+        challenge = generate_pkce_challenge(verifier)
+        st.session_state.pkce_verifier = verifier
 
-        app = build_msal_app()
-        result = app.acquire_token_by_authorization_code(
-            code,
-            scopes=[],
-            redirect_uri=AZ_REDIRECT
+        # criar URL PKCE
+        login_url = (
+            f"{AUTH_URL}"
+            f"?client_id={AZ_CLIENT_ID}"
+            f"&response_type=code"
+            f"&redirect_uri={AZ_REDIRECT}"
+            f"&response_mode=query"
+            f"&scope={' '.join(SCOPES)}"
+            f"&code_challenge={challenge}"
+            f"&code_challenge_method=S256"
         )
 
-        if "id_token" in result:
-            claims = result["id_token_claims"]
+        st.title("🔐 Login com Azure AD")
+        st.markdown("Clique abaixo para autenticar.")
+
+        if st.button("⭐ Entrar com Azure AD"):
+            st.markdown(
+                f"<script>window.location.href='{login_url}';</script>",
+                unsafe_allow_html=True
+            )
+        st.stop()
+
+    # 2. Retorno do Azure com ?code=
+    else:
+        code = query_params["code"][0]
+
+        # Troca o code pelo token usando PKCE
+        data = {
+            "grant_type": "authorization_code",
+            "client_id": AZ_CLIENT_ID,
+            "code": code,
+            "redirect_uri": AZ_REDIRECT,
+            "code_verifier": st.session_state.pkce_verifier,
+        }
+
+        resp = requests.post(TOKEN_URL, data=data)
+        token_data = resp.json()
+
+        if "id_token" in token_data:
+            # decodifica JWT sem validar assinatura (somente parse)
+            payload_part = token_data["id_token"].split(".")[1]
+            payload_part += "=" * (-len(payload_part) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(payload_part.encode()))
 
             st.session_state.auth_user = {
                 "name": claims.get("name"),
@@ -70,21 +101,22 @@ if "auth_user" not in st.session_state:
                 "oid": claims.get("oid"),
             }
 
-            st.success("Login realizado com sucesso!")
             st.rerun()
         else:
-            st.error("❌ Falha ao autenticar no Azure AD")
+            st.error("❌ Erro ao trocar code por token no Azure AD")
+            st.write(token_data)
             st.stop()
 
 # -----------------------------------------------------
 # USUÁRIO LOGADO
 # -----------------------------------------------------
 user = st.session_state.auth_user
+st.sidebar.success(f"👤 {user['name']} ({user['email']})")
 
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
-st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
+
 
 st.title("💁‍♂️ Pergunte ao Bentinho")
 st.caption("Não esqueça de selecionar a área que deseja a informação ao lado 👈")
