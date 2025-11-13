@@ -314,7 +314,9 @@ agent_cfg = AGENTS[selected_agent]
 agent_name = agent_cfg["agent"]
 semantic_model = agent_cfg["semantic_model"]
 st.sidebar.markdown("---")
-st.sidebar.write(f"👤 {user['name']} ({user['email']})")
+st.sidebar.header("👤 Usuário:")
+st.sidebar.write(f"{user['name']}")
+st.sidebar.write(f"({user['email']})")
 #st.sidebar.write(f"**Usuário:** {USER}")
 #st.sidebar.write(f"**Conta:** {ACCOUNT}")
 #st.sidebar.write(f"**Renovação:** {time.strftime('%H:%M:%S', time.localtime(jwt_gen.renew_time))}")
