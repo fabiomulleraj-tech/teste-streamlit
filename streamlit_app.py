@@ -12,40 +12,68 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
-CLIENT_ID = st.secrets["rsa"]["CLIENT_ID"]
-TENANT_ID = st.secrets["rsa"]["TENANT_ID"]
-SCOPES = ["User.Read"]
-ALLOWED_DOMAIN = "@almeidajunior.com.br"
-AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+import streamlit as st
+import msal
+import time
+import urllib.parse
 
-def microsoft_device_login():
-    # Se já autenticado
+CLIENT_ID = st.secrets["rsa"]["CLIENT_ID"]
+CLIENT_SECRET = st.secrets["rsa"]["CLIENT_SECRET"]
+TENANT_ID = st.secrets["rsa"]["TENANT_ID"]
+AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+SCOPES = ["User.Read"]
+REDIRECT_URI = "https://testeajai.streamlit.app/"
+ALLOWED_DOMAIN = "@almeidajunior.com.br"
+
+# ---------------------------------------------------------
+# FUNÇÃO DE LOGIN VIA MICROSOFT 365
+# ---------------------------------------------------------
+def microsoft_login():
     if "user_email" in st.session_state:
         return st.session_state["user_email"]
 
-    app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY)
+    app = msal.ConfidentialClientApplication(
+        CLIENT_ID,
+        authority=AUTHORITY,
+        client_credential=CLIENT_SECRET
+    )
 
-    flow = app.initiate_device_flow(scopes=SCOPES)
-    if "user_code" not in flow:
-        st.error("❌ Falha ao iniciar o fluxo de login Microsoft.")
+    query_params = st.query_params
+    if "code" not in query_params:
+        auth_url = app.get_authorization_request_url(
+            SCOPES,
+            redirect_uri=REDIRECT_URI,
+            response_mode="query"
+        )
+        st.markdown(
+            f"""
+            <div style='text-align:center; margin-top:80px;'>
+                <a href='{auth_url}' target='_self'>
+                    <button style='padding:12px 25px; background-color:#0078D4; color:white; border:none; border-radius:6px; font-size:16px;'>
+                        🔐 Entrar com Microsoft
+                    </button>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
         st.stop()
 
-    st.info(f"""
-        1️⃣ Acesse [https://microsoft.com/devicelogin](https://microsoft.com/devicelogin)  
-        2️⃣ Digite o código: **{flow['user_code']}**
-    """)
-
-    result = app.acquire_token_by_device_flow(flow)
+    code = query_params["code"]
+    result = app.acquire_token_by_authorization_code(
+        code,
+        scopes=SCOPES,
+        redirect_uri=REDIRECT_URI
+    )
 
     if "id_token_claims" not in result:
-        st.error(f"❌ Falha no login: {result.get('error_description')}")
+        st.error("❌ Falha ao autenticar no Microsoft 365.")
         st.stop()
 
     claims = result["id_token_claims"]
     user_email = claims.get("preferred_username", claims.get("email", ""))
 
-    # Verifica domínio
-    if not user_email.lower().endswith(ALLOWED_DOMAIN.lower()):
+    if not user_email.endswith(ALLOWED_DOMAIN):
         st.error("🚫 Acesso restrito ao domínio corporativo Almeida Junior.")
         st.stop()
 
@@ -53,6 +81,15 @@ def microsoft_device_login():
     st.session_state["login_time"] = time.strftime("%H:%M:%S")
     st.success(f"✅ Autenticado como {user_email}")
     return user_email
+
+
+# ---------------------------------------------------------
+# CHAMADA DO LOGIN LOGO NO INÍCIO DO APP
+# ---------------------------------------------------------
+user = microsoft_login()
+
+st.title(f"🤖 Bem-vindo, {user}")
+
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
