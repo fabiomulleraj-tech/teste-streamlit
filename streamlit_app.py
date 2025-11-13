@@ -12,27 +12,74 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
-USERS = st.secrets["auth"]
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+# -----------------------------------------------------
+# AUTENTICAÇÃO VIA AZURE AD PARA STREAMLIT CLOUD
+# -----------------------------------------------------
+AZ_CLIENT_ID = st.secrets["azure"]["client_id"]
+AZ_TENANT_ID = st.secrets["azure"]["tenant_id"]
+AZ_CLIENT_SECRET = st.secrets["azure"]["client_secret"]
+AZ_REDIRECT = st.secrets["azure"]["redirect_uri"]   # https://testeajai.streamlit.app/redirect
 
-if not st.session_state.logged_in:
-    st.title("🔐 Login necessário")
-    username = st.text_input("Usuário")
-    password = st.text_input("Senha", type="password")
+AUTHORITY = f"https://login.microsoftonline.com/{AZ_TENANT_ID}"
+SCOPES = ["openid", "profile", "email"]
 
-    if st.button("Entrar"):
-        if username in USERS and USERS[username] == password:
-            st.session_state.logged_in = True
-            st.session_state.user = username
-            st.success(f"✅ Bem-vindo, {username}!")
+def build_msal_app():
+    return msal.ConfidentialClientApplication(
+        client_id=AZ_CLIENT_ID,
+        authority=AUTHORITY,
+        client_credential=AZ_CLIENT_SECRET,
+    )
+
+def build_auth_url():
+    return build_msal_app().get_authorization_request_url(
+        scopes=SCOPES,
+        redirect_uri=AZ_REDIRECT
+    )
+
+# -----------------------------------------------------
+# LOGIN FLOW CONTROL
+# -----------------------------------------------------
+query_params = st.query_params
+
+if "auth_user" not in st.session_state:
+    if "code" not in query_params:
+        st.title("🔐 Login com Azure AD")
+        st.markdown("Clique abaixo para autenticar com sua conta corporativa AJ.")
+
+        login_url = build_auth_url()
+        st.markdown(f"[⭐ Entrar com Azure AD]({login_url})")
+        st.stop()
+    else:
+        code = query_params["code"]
+
+        app = build_msal_app()
+        result = app.acquire_token_by_authorization_code(
+            code,
+            scopes=SCOPES,
+            redirect_uri=AZ_REDIRECT
+        )
+
+        if "id_token" in result:
+            claims = result["id_token_claims"]
+
+            st.session_state.auth_user = {
+                "name": claims.get("name"),
+                "email": claims.get("preferred_username"),
+                "oid": claims.get("oid"),
+            }
+
+            st.success("Login realizado com sucesso!")
             st.rerun()
         else:
-            st.error("❌ Usuário ou senha inválidos.")
-    st.stop()
+            st.error("❌ Falha ao autenticar no Azure AD")
+            st.stop()
 
-st.sidebar.success(f"👤 Usuário: {st.session_state.user}")
+# -----------------------------------------------------
+# USUÁRIO LOGADO
+# -----------------------------------------------------
+user = st.session_state.auth_user
+st.sidebar.success(f"👤 {user['name']} ({user['email']})")
 
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
