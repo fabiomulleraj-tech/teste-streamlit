@@ -13,52 +13,70 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 from ldap3 import Server, Connection, ALL
 
-# Configuração AD
+# ---------------------------------------------------------
+# CONFIGURAÇÃO DO AD
+# ---------------------------------------------------------
+AD_SERVERS = [
+    "ldap://SRVADPRD1.central.local",
+    "ldap://SRVADPRD2.central.local"
+]
 
-AD_SERVER = "ldap://SRVADPRD.central.local"  # ajuste
 AD_DOMAIN = "CENTRAL"
 AD_BASE = "DC=central,DC=local"
 
+
+# ---------------------------------------------------------
+# FUNÇÃO DE AUTENTICAÇÃO
+# ---------------------------------------------------------
+def authenticate_ad(username, password):
+    user_dn = f"{AD_DOMAIN}\\{username}"
+
+    for srv in AD_SERVERS:
+        try:
+            server = Server(srv, get_info=ALL)
+
+            conn = Connection(
+                server,
+                user=user_dn,
+                password=password,
+                authentication=NTLM,
+                auto_bind=True
+            )
+
+            conn.unbind()
+            return True  # autenticado com sucesso
+
+        except Exception as e:
+            last_error = str(e)
+            continue
+
+    # Nenhum controlador autenticou
+    st.error(f"Falha AD: {last_error}")
+    return False
+
+
+# ---------------------------------------------------------
+# TELA DE LOGIN
+# ---------------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-def authenticate_ad(username, password):
-    try:
-        user_with_domain = f"{AD_DOMAIN}\\{username}"
-
-        st.write(f"Tentando autenticar como: {user_with_domain}")
-
-        server = Server(AD_SERVER, get_info=ALL)
-        conn = Connection(
-            server,
-            user=user_with_domain,
-            password=password,
-            authentication=NTLM, 
-            auto_bind=True
-        )
-
-        st.write("Conexão AD OK. Autenticado!")
-        conn.unbind()
-        return True
-
-    except Exception as e:
-        st.error(f"Falha AD: {e}")
-        return False
-
-# Login
 if not st.session_state.logged_in:
-    st.title("🔐 Login AD")
-
-    username = st.text_input("Usuário")
+    st.title("🔐 Login (Active Directory)")
+    username = st.text_input("Usuário (apenas nome, sem domínio)")
     password = st.text_input("Senha", type="password")
+
     if st.button("Entrar"):
         if authenticate_ad(username, password):
             st.session_state.logged_in = True
+            st.session_state.user = username
+            st.success("✅ Autenticado com sucesso!")
             st.rerun()
         else:
-            st.error("Usuário ou senha inválidos")
+            st.error("❌ Usuário ou senha inválidos.")
 
     st.stop()
+
 
 
 st.sidebar.success(f"👤 Usuário: {st.session_state.user}")
