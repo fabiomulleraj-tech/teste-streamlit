@@ -14,6 +14,7 @@ from cryptography.hazmat.backends import default_backend
 
 USERS = st.secrets["auth"]
 
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
