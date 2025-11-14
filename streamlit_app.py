@@ -412,6 +412,6 @@ if prompt:
     status_placeholder.empty()
 
 
-    st.chat_message("assistant", avatar="💁‍♂️").markdown(f"<div class='assistant_msg'>{resposta}</div>", unsafe_allow_html=True)
+    st.chat_message("assistant", avatar="💁‍♂️").write(resposta)
     st.session_state.messages.append({"role": "assistant", "content": resposta,  "avatar": "💁‍♂️"})
     
