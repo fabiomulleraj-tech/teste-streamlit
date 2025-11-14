@@ -59,12 +59,7 @@ def authenticate_ad(username, password):
     st.error(f"Falha AD: {last_error}")
     return False
 
-# ----- LOGIN VIA COOKIE -----
-saved_user = cookie_manager.get("aj_logged_user")
 
-if saved_user and not st.session_state.logged_in:
-    st.session_state.logged_in = True
-    st.session_state.username = saved_user
 # ---------------------------------------------------------
 # LOGIN PAGE
 # ---------------------------------------------------------
@@ -99,14 +94,17 @@ if not st.session_state.logged_in:
 st.sidebar.success(f"👤 Logado como: {st.session_state.username}")
 
 if st.sidebar.button("Sair"):
-    cookie_manager.delete(
-                        "aj_logged_user",
-                        path="/"
-    )
+    cookie_manager.delete("aj_logged_user")
     st.session_state.logged_in = False
     st.session_state.username = None
     st.rerun()
+    
+# ----- LOGIN VIA COOKIE -----
+saved_user = cookie_manager.get("aj_logged_user")
 
+if saved_user and not st.session_state.logged_in:
+    st.session_state.logged_in = True
+    st.session_state.username = saved_user
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
