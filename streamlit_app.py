@@ -20,7 +20,7 @@ from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
 cookie_manager = stx.CookieManager(key="aj-cookie-key")
-cookie_manager = cookie_manager()  
+cookie_manager()
 
 st.session_state.setdefault("logged_in", False)
 st.session_state.setdefault("username", None)
@@ -124,6 +124,7 @@ if st.sidebar.button("Criar cookie de teste"):
     st.rerun()
 
     
+st.write("📌 Cookie detectado:", cookie_manager.get("aj_logged_user"))
 st.write("📌 Cookie detectado:", cookie_manager.get("aj_test_cookie"))
 
 
