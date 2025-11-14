@@ -264,13 +264,17 @@ def send_prompt_to_cortex(prompt, agent, jwt):
 
     thinking_box.empty()
 
-    if answer_buffer:
-        return answer_buffer.strip()
 
-    if final_answer:
-        return final_answer.strip()
+    # PRIORIDADE 1 → Streaming token-a-token
+    if streamed_text.strip():
+        return streamed_text.strip()
 
-    return "⚠ Nenhum conteúdo retornado."
+    # PRIORIDADE 2 → Resposta final (quando não houve streaming)
+    if final_text and final_text.strip():
+        return final_text.strip()
+
+    # PRIORIDADE 3 → Nada encontrado
+    return "⚠️ Nenhum conteúdo retornado."
 
 
 # ---------------------------------------------------------
