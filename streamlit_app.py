@@ -87,6 +87,13 @@ if not st.session_state.logged_in:
             st.error("❌ Usuário ou senha inválidos.")
 
     st.stop()   # impede renderização do restante da página
+    
+# ----- LOGIN VIA COOKIE -----
+saved_user = cookie_manager.get("aj_logged_user")
+
+if saved_user and not st.session_state.logged_in:
+    st.session_state.logged_in = True
+    st.session_state.username = saved_user
 
 # ---------------------------------------------------------
 # USER LOGGED — NORMAL APP EXECUTION
@@ -98,13 +105,8 @@ if st.sidebar.button("Sair"):
     st.session_state.logged_in = False
     st.session_state.username = None
     st.rerun()
-    
-# ----- LOGIN VIA COOKIE -----
-saved_user = cookie_manager.get("aj_logged_user")
 
-if saved_user and not st.session_state.logged_in:
-    st.session_state.logged_in = True
-    st.session_state.username = saved_user
+
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
