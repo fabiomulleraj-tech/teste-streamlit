@@ -20,7 +20,7 @@ from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
 cookie_manager = stx.CookieManager(key="aj-cookie-key")
-cookie_manager()
+cookie_manager  # <- isto renderiza o componente e ativa cookies
 
 st.session_state.setdefault("logged_in", False)
 st.session_state.setdefault("username", None)
