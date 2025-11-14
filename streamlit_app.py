@@ -246,10 +246,23 @@ def send_prompt_to_cortex(prompt, agent, jwt):
             continue
 
         # PACOTE FINAL
+        # PACOTE FINAL (schema_version — contém thinking e resposta final)
         if "schema_version" in data:
+
+            # 1️⃣ MOSTRAR THINKING FINAL — igual ao Snowflake Intelligence
+            for block in data.get("content", []):
+                if block.get("type") == "thinking":
+                    txt = block.get("thinking", {}).get("text", "")
+                    if txt:
+                        thinking.markdown(
+                            f"🧠 **Pensando...**\n\n```\n{txt}\n```"
+                        )
+
+            # 2️⃣ PEGAR O TEXTO FINAL
             for block in data.get("content", []):
                 if block.get("type") == "text":
-                    final_text = block.get("text")
+                    final_text = block.get("text", "")
+
             continue
 
     thinking.empty()
