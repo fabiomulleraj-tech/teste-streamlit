@@ -111,9 +111,7 @@ if st.sidebar.button("Sair"):
     st.session_state.username = None
     st.rerun()
     
-st.write("📌 Cookie detectado:", cookie_manager.get("aj_test_cookie"))
-
-if st.button("Criar cookie de teste"):
+if st.sidebar.button("Criar cookie de teste"):
     cookie_manager.set(
         "aj_test_cookie",
         "funcionando",
@@ -122,6 +120,10 @@ if st.button("Criar cookie de teste"):
         same_site="None"
     )
     st.rerun()
+
+    
+st.write("📌 Cookie detectado:", cookie_manager.get("aj_test_cookie"))
+
 
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
