@@ -14,11 +14,11 @@ from cryptography.hazmat.backends import default_backend
 from ldap3 import Server, Connection, ALL
 
 # Configuração AD
-AD_SERVER = "ldaps://SRVADPRD.CENTRAL.LOCAL"   # ou ldap://
-AD_DOMAIN = "CENTRAL"                       # Ex: CENTRAL
-AD_BASE = "DC=central,DC=local"             # ajuste conforme o seu
 
-# Estado
+AD_SERVER = "ldap://SRVADPRD.central.local"  # ajuste
+AD_DOMAIN = "CENTRAL"
+AD_BASE = "DC=central,DC=local"
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -26,28 +26,32 @@ def authenticate_ad(username, password):
     try:
         user_with_domain = f"{AD_DOMAIN}\\{username}"
 
+        st.write(f"Tentando autenticar como: {user_with_domain}")
+
         server = Server(AD_SERVER, get_info=ALL)
         conn = Connection(
             server,
             user=user_with_domain,
             password=password,
-            authentication=NTLM,     # AD on-premises
+            authentication=NTLM, 
             auto_bind=True
         )
+
+        st.write("Conexão AD OK. Autenticado!")
         conn.unbind()
         return True
-    except:
+
+    except Exception as e:
+        st.error(f"Falha AD: {e}")
         return False
 
-# Tela de login
+# Login
 if not st.session_state.logged_in:
-    st.title("🔐 Login")
+    st.title("🔐 Login AD")
 
     username = st.text_input("Usuário")
     password = st.text_input("Senha", type="password")
-    btn = st.button("Entrar")
-
-    if btn:
+    if st.button("Entrar"):
         if authenticate_ad(username, password):
             st.session_state.logged_in = True
             st.rerun()
