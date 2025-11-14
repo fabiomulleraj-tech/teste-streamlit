@@ -59,6 +59,12 @@ def authenticate_ad(username, password):
     st.error(f"Falha AD: {last_error}")
     return False
 
+# ----- LOGIN VIA COOKIE -----
+saved_user = cookie_manager.get("aj_logged_user")
+
+if saved_user and not st.session_state.logged_in:
+    st.session_state.logged_in = True
+    st.session_state.username = saved_user
 
 # ---------------------------------------------------------
 # LOGIN PAGE
@@ -87,13 +93,7 @@ if not st.session_state.logged_in:
             st.error("❌ Usuário ou senha inválidos.")
 
     st.stop()   # impede renderização do restante da página
-    
-# ----- LOGIN VIA COOKIE -----
-saved_user = cookie_manager.get("aj_logged_user")
 
-if saved_user and not st.session_state.logged_in:
-    st.session_state.logged_in = True
-    st.session_state.username = saved_user
 
 # ---------------------------------------------------------
 # USER LOGGED — NORMAL APP EXECUTION
