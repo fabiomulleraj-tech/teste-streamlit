@@ -110,7 +110,18 @@ if st.sidebar.button("Sair"):
     st.session_state.logged_in = False
     st.session_state.username = None
     st.rerun()
+    
+st.write("📌 Cookie detectado:", cookie_manager.get("aj_test_cookie"))
 
+if st.button("Criar cookie de teste"):
+    cookie_manager.set(
+        "aj_test_cookie",
+        "funcionando",
+        expires_at=datetime.datetime(2100, 1, 1),
+        secure=True,
+        same_site="None"
+    )
+    st.rerun()
 
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
