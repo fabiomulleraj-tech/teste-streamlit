@@ -295,8 +295,15 @@ if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.chat_message("user", avatar="🤔").write(prompt)
 
-    with st.spinner(f"Agente de {selected_agent} pensando..."):
-        resposta = send_prompt_to_cortex(prompt, agent_name, jwt_token)
+    #with st.spinner(f"Agente de {selected_agent} pensando..."):
+    #    resposta = send_prompt_to_cortex(prompt, agent_name, jwt_token)
+    status_placeholder = st.empty()
+    status_placeholder.markdown(f"🧠 Agente de **{selected_agent}** pensando...")
+
+    resposta = send_prompt_to_cortex(prompt, agent_name, jwt_token)
+
+    status_placeholder.empty()
+
 
     st.chat_message("assistant", avatar="💁‍♂️").write(resposta)
     st.session_state.messages.append({"role": "assistant", "content": resposta})
