@@ -11,13 +11,13 @@ import urllib.parse
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
-from ldap3 import Server, Connection, ALL
+from ldap3 import Server, Connection, ALL, NTLM
 
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DO AD
 # ---------------------------------------------------------
 AD_SERVERS = [
-    "ldap://SRVADPRD1.central.local",
+    "ldap://SRVADPRD.central.local",
     "ldap://SRVADPRD2.central.local"
 ]
 
