@@ -38,6 +38,81 @@ st.sidebar.success(f"👤 Usuário: {st.session_state.user}")
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
+st.markdown("""
+<style>
+
+    /* ======== GLOBAL ======== */
+    html, body, [class*="css"]  {
+        background-color: #101010 !important;
+        color: #FFFFFF !important;
+        font-family: "Segoe UI", sans-serif;
+    }
+
+    /* ======== SIDEBAR ======== */
+    section[data-testid="stSidebar"] {
+        background-color: #0D0D0D !important;
+        border-right: 2px solid #003D73 !important;
+    }
+    section[data-testid="stSidebar"] .css-1n76uvr {
+        color: white !important;
+    }
+
+    /* ======== BOTÕES ======== */
+    button[kind="primary"] {
+        background-color: #003D73 !important;
+        color: white !important;
+        border-radius: 6px !important;
+        border: 1px solid #0072BB !important;
+    }
+
+    button:hover {
+        background-color: #0072BB !important;
+        color: white !important;
+    }
+
+    /* ======== CHAT INPUT ======== */
+    div[data-baseweb="textarea"] > textarea {
+        background-color: #161616 !important;
+        color: white !important;
+        border-radius: 10px !important;
+        border: 1px solid #003D73 !important;
+        padding: 12px !important;
+    }
+
+    /* ======== USER MESSAGE BUBBLE ======== */
+    .user_msg {
+        background-color: #003D73 !important;
+        padding: 14px;
+        border-radius: 10px;
+        color: white !important;
+        margin-bottom: 8px;
+        border: 1px solid #0072BB;
+    }
+
+    /* ======== ASSISTANT MESSAGE BUBBLE ======== */
+    .assistant_msg {
+        background-color: #161616 !important;
+        padding: 14px;
+        border-radius: 10px;
+        color: #FFFFFF !important;
+        border-left: 4px solid #00A652 !important;
+        margin-bottom: 8px;
+    }
+
+    /* ======== THINKING BOX ======== */
+    .thinking_box {
+        background-color: #161616 !important;
+        padding: 16px;
+        border-radius: 10px;
+        border-left: 4px solid #0072BB !important;
+        color: white !important;
+        margin-top: 10px;
+        white-space: normal;
+        word-wrap: break-word;
+    }
+
+</style>
+""", unsafe_allow_html=True)
 
 st.title("💁‍♂️ Pergunte ao Bentinho")
 st.caption("Não esqueça de selecionar a área que deseja a informação ao lado 👈")
@@ -325,7 +400,7 @@ prompt = st.chat_input("Digite sua pergunta...")
 
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
-    st.chat_message("user", avatar="🤔").write(prompt)
+    st.chat_message("user", avatar="🤔").markdown(f"<div class='user_msg'>{prompt}</div>", unsafe_allow_html=True)
 
     #with st.spinner(f"Agente de {selected_agent} pensando..."):
     #    resposta = send_prompt_to_cortex(prompt, agent_name, jwt_token)
@@ -337,6 +412,6 @@ if prompt:
     status_placeholder.empty()
 
 
-    st.chat_message("assistant", avatar="💁‍♂️").write(resposta)
+    st.chat_message("assistant", avatar="💁‍♂️").markdown(f"<div class='assistant_msg'>{resposta}</div>", unsafe_allow_html=True)
     st.session_state.messages.append({"role": "assistant", "content": resposta,  "avatar": "💁‍♂️"})
     
