@@ -9,10 +9,13 @@ import io
 import msal
 import urllib.parse
 import ssl
+import extra_streamlit_components as stx
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 from ldap3 import Server, Connection, ALL, SIMPLE, Tls
+
+cookie_manager = stx.CookieManager()
 
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
@@ -58,6 +61,11 @@ def authenticate_ad(username, password):
     st.error(f"Falha AD: {last_error}")
     return False
 
+saved_user = cookie_manager.get("aj_logged_user")
+
+if saved_user and not st.session_state.logged_in:
+    st.session_state.logged_in = True
+    st.session_state.username = saved_user
 # ---------------------------------------------------------
 # LOGIN PAGE
 # ---------------------------------------------------------
@@ -71,6 +79,8 @@ if not st.session_state.logged_in:
         if authenticate_ad(username, password):
             st.session_state.logged_in = True
             st.session_state.username = username
+            # salva cookie persistente
+            cookie_manager.set("aj_logged_user", username, expires_at="2100-01-01T00:00:00")
             st.success("✅ Autenticado com sucesso!")
             st.rerun()
         else:

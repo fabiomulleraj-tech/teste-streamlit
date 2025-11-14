@@ -7,3 +7,4 @@ requests
 sseclient-py
 msal
 ldap3
+extra-streamlit-components
