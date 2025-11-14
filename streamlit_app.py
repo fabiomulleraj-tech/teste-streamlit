@@ -213,18 +213,40 @@ def send_prompt_to_cortex(prompt, agent, jwt):
                 data = json.loads(raw_json)
             except:
                 continue
+            def render_thinking(text):
+                safe_text = text.replace("\n", "<br>")
+                thinking_box.markdown(
+                    f"""
+            <div style="
+                background-color:#111;
+                padding:12px;
+                border-radius:8px;
+                line-height:1.45;
+                font-size:15px;
+                border-left: 4px solid #ff4081;
+                word-wrap: break-word;
+                white-space: normal;
+            ">
+                <div style="font-size:18px;margin-bottom:8px;">
+                    🧠 <b>Pensando...</b>
+                </div>
+                {safe_text}
+            </div>
+            """,
+                    unsafe_allow_html=True
+                )
 
             # THINKING STREAM (token a token)
             if current_event == "response.thinking.delta":
                 delta = data.get("text", "")
                 thinking_buffer += delta
-                thinking_box.markdown(f"🧠 **Pensando...**\n\n```\n{thinking_buffer}\n```")
+                render_thinking(thinking_buffer)
 
             # THINKING FINAL
             elif current_event == "response.thinking":
                 txt = data.get("text", "")
                 thinking_buffer = txt
-                thinking_box.markdown(f"🧠 **Pensando...**\n\n```\n{txt}\n```")
+                render_thinking(txt)
 
             # RESPOSTA STREAM (token a token)
             elif current_event == "response.text.delta":
