@@ -163,102 +163,67 @@ class JWTGenerator:
 # ---------------------------------------------------------
 # STREAMING DE RESPOSTAS DO CORTEX (tipo "Thinking steps")
 # ---------------------------------------------------------
-def send_prompt_to_cortex(prompt, agent, jwt_token, debug=False):
+def send_prompt_to_cortex(prompt, agent, jwt):
     url = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents/{agent}:run"
+
     headers = {
-        "Authorization": f"Bearer {jwt_token}",
+        "Authorization": f"Bearer {jwt}",
         "Accept": "text/event-stream",
         "Content-Type": "application/json",
     }
 
-    body = {
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt}
-                ]
-            }
-        ]
-    }
+    body = {"messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}]}
 
-    if debug:
-        with st.expander("🧩 DEBUG REQUEST", expanded=False):
-            st.write("**URL:**", url)
-            st.json(headers)
-            st.json(body)
-            st.code(jwt_token, language="bash")
+    response = requests.post(url, headers=headers, json=body, stream=True)
 
-    try:
-        with requests.post(url, headers=headers, json=body, stream=True, timeout=180) as resp:
-            if resp.status_code != 200:
-                if debug:
-                    with st.expander("❌ DEBUG RESPONSE", expanded=True):
-                        st.write("**Status:**", resp.status_code)
-                        st.text(resp.text)
-                return f"⚠️ Erro HTTP {resp.status_code}: {resp.text}"
+    streamed_text = ""
+    final_text = None
 
-            full_text = ""
-            thinking_box = st.empty()
-            chat_box = st.empty()
+    thinking = st.empty()
+    chat = st.empty()
 
-            for raw_line in resp.iter_lines():
-                if not raw_line:
-                    continue
+    for raw in response.iter_lines():
+        if not raw:
+            continue
 
-                try:
-                    line = raw_line.decode("utf-8").strip()
+        line = raw.decode().strip()
+        if not line.startswith("data: "):
+            continue
 
-                    # SOMENTE processa linhas "data: "
-                    if not line.startswith("data: "):
-                        if debug:
-                            st.sidebar.info(f"Ignorando SSE não-data: {line}")
-                        continue
+        raw_json = line[6:]
+        try:
+            data = json.loads(raw_json)
+        except:
+            continue
 
-                    raw = line[6:].strip()
+        # STREAMING NORMAL
+        if "thinking" in data:
+            thinking.markdown(f"🧠 Pensando...\n```\n{data['thinking']}\n```")
+            continue
 
-                    # Ignorar keep-alives, DONE, etc.
-                    if raw in ("", "[DONE]", "null"):
-                        continue
+        if "output" in data:
+            streamed_text += data["output"]["text"]
+            chat.markdown(streamed_text)
+            continue
 
-                    # Tentar JSON
-                    try:
-                        data = json.loads(raw)
-                    except Exception:
-                        if debug:
-                            st.sidebar.warning(f"SSE ignorado (não-JSON): {raw[:200]}...")
-                        continue
+        # PACOTE FINAL (schema_version)
+        if "schema_version" in data:
+            for block in data.get("content", []):
+                if block.get("type") == "text":
+                    final_text = block.get("text")
+            continue
 
-                    # Ignorar pacotes gigantes de resposta final (schema_version / role / content)
-                    if isinstance(data, dict) and (
-                        "schema_version" in data 
-                        or ("role" in data and "content" in data)
-                    ):
-                        if debug:
-                            st.sidebar.info("📦 SSE ignorado (pacote final do assistente, não-streaming).")
-                        continue
+    thinking.empty()
 
-                    # Renderizar
-                    if "thinking" in data:
-                        thinking_box.markdown(
-                            f"🧠 **Pensando...**\n\n```\n{data['thinking']}\n```"
-                        )
+    # Se teve texto no streaming → usa
+    if streamed_text.strip():
+        return streamed_text.strip()
 
-                    if "output" in data:
-                        full_text += data["output"].get("text", "")
-                        chat_box.markdown(full_text)
+    # Se não teve streaming, mas teve texto final → usa
+    if final_text:
+        return final_text.strip()
 
-                except Exception as e:
-                    if debug:
-                        st.sidebar.error(f"⚠️ Erro processando linha SSE: {e}")
-
-            thinking_box.empty()
-            return full_text.strip() or "⚠️ Nenhum conteúdo retornado."
-
-    except Exception as e:
-        if debug:
-            st.sidebar.error(f"❌ Erro no streaming SSE: {e}")
-        return f"❌ Erro ao consultar o agente: {e}"
+    return "⚠️ Nenhum conteúdo retornado."
 
 
 # ---------------------------------------------------------
