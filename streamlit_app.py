@@ -14,11 +14,15 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 
+# ---------------------------------------------------------
+# ESTADO GLOBAL
+# ---------------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if "username" not in st.session_state:
     st.session_state.username = None
+
 
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DO AD
@@ -31,8 +35,9 @@ AD_SERVERS = [
 def authenticate_ad(username, password):
     user_dn = f"CENTRAL\\{username}"
 
-    # TLS sem validação forte (evita erro de certificado self-signed)
     tls = Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
+
+    last_error = None
 
     for srv in AD_SERVERS:
         try:
@@ -42,7 +47,7 @@ def authenticate_ad(username, password):
                 server,
                 user=user_dn,
                 password=password,
-                authentication=SIMPLE,   # ← NÃO USA NTLM
+                authentication=SIMPLE,
                 auto_bind=True
             )
 
@@ -58,57 +63,37 @@ def authenticate_ad(username, password):
 
 
 # ---------------------------------------------------------
-# TELA DE LOGIN
+# TELA DE LOGIN (não repetir código)
 # ---------------------------------------------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
 if not st.session_state.logged_in:
+
     st.title("🔐 Login (Active Directory)")
-    username = st.text_input("Usuário (apenas nome, sem domínio)")
-    password = st.text_input("Senha", type="password")
+
+    username_input = st.text_input("Usuário (apenas o nome, sem domínio)")
+    password_input = st.text_input("Senha", type="password")
 
     if st.button("Entrar"):
-        if authenticate_ad(username, password):
+
+        if authenticate_ad(username_input, password_input):
             st.session_state.logged_in = True
-            st.session_state.user = username
-            st.success("✅ Autenticado com sucesso!")
+            st.session_state.username = username_input
+            st.success("✅ Autenticado!")
             st.rerun()
         else:
             st.error("❌ Usuário ou senha inválidos.")
 
-    st.stop()
-    
-if authenticate_ad(username, password):
-    st.session_state.logged_in = True
-    st.session_state.username = username
-    st.success(f"Bem-vindo, {username}!")
-    st.experimental_rerun()   # ← garante que a tela já vire para o conteúdo
-else:
-    st.error("Usuário ou senha inválidos.")
+    st.stop()  # <-- impede o app de continuar se não estiver logado
 
-if not st.session_state.logged_in:
-    st.title("Login - Almeida Junior")
 
-    username = st.text_input("Usuário")
-    password = st.text_input("Senha", type="password")
-
-    if st.button("Entrar"):
-        if authenticate_ad(username, password):
-            st.session_state.logged_in = True
-            st.session_state.username = username
-            st.experimental_rerun()
-        else:
-            st.error("Usuário ou senha inválidos.")
-
-    st.stop()  # ⛔ impede o resto da página de renderizar
-
+# ---------------------------------------------------------
+# ÁREA LOGADA
+# ---------------------------------------------------------
 st.sidebar.success(f"Logado como: {st.session_state.username}")
 
 if st.sidebar.button("Sair"):
     st.session_state.logged_in = False
     st.session_state.username = None
-    st.experimental_rerun()
+    st.rerun()
 
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
