@@ -99,7 +99,10 @@ if not st.session_state.logged_in:
 st.sidebar.success(f"👤 Logado como: {st.session_state.username}")
 
 if st.sidebar.button("Sair"):
-    cookie_manager.delete("aj_logged_user")
+    cookie_manager.delete(
+                        "aj_logged_user",
+                        path="/"
+    )
     st.session_state.logged_in = False
     st.session_state.username = None
     st.rerun()
