@@ -42,75 +42,79 @@ st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 st.markdown("""
 <style>
 
-    /* ======== GLOBAL ======== */
-    html, body, [class*="css"]  {
-        background-color: #101010 !important;
-        color: #FFFFFF !important;
-        font-family: "Segoe UI", sans-serif;
-    }
+:root, html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"], [class*="css"] * {
+    all: unset;
+    all: initial !important;
+}
 
-    /* ======== SIDEBAR ======== */
-    section[data-testid="stSidebar"] {
-        background-color: #0D0D0D !important;
-        border-right: 2px solid #003D73 !important;
-    }
-    section[data-testid="stSidebar"] .css-1n76uvr {
-        color: white !important;
-    }
+/* Reinicia apenas propriedades que precisamos */
+body {
+    background-color: #101010 !important;
+    font-family: "Segoe UI", sans-serif !important;
+    color: #ffffff !important;
+}
 
-    /* ======== BOTÕES ======== */
-    button[kind="primary"] {
-        background-color: #003D73 !important;
-        color: white !important;
-        border-radius: 6px !important;
-        border: 1px solid #0072BB !important;
-    }
+/* ================== SIDEBAR ================== */
+section[data-testid="stSidebar"] {
+    background: #0D0D0D !important;
+    border-right: 2px solid #003D73 !important;
+}
+section[data-testid="stSidebar"] * {
+    color: #fff !important;
+}
 
-    button:hover {
-        background-color: #0072BB !important;
-        color: white !important;
-    }
+/* ================== CHAT USER ================== */
+.user_msg {
+    background-color: #003D73 !important;
+    padding: 14px !important;
+    border-radius: 10px !important;
+    border: 1px solid #0072BB !important;
+    margin-bottom: 10px !important;
+    color: white !important;
+    line-height: 1.5;
+}
 
-    /* ======== CHAT INPUT ======== */
-    div[data-baseweb="textarea"] > textarea {
-        background-color: #161616 !important;
-        color: white !important;
-        border-radius: 10px !important;
-        border: 1px solid #003D73 !important;
-        padding: 12px !important;
-    }
+/* ================== ASSISTANT ================== */
+.assistant_msg {
+    background-color: #161616 !important;
+    padding: 14px !important;
+    border-radius: 10px !important;
+    border-left: 5px solid #00A652 !important;
+    margin-bottom: 10px !important;
+    color: white !important;
+    line-height: 1.5;
+}
 
-    /* ======== USER MESSAGE BUBBLE ======== */
-    .user_msg {
-        background-color: #003D73 !important;
-        padding: 14px;
-        border-radius: 10px;
-        color: white !important;
-        margin-bottom: 8px;
-        border: 1px solid #0072BB;
-    }
+/* ================== THINKING BOX ================== */
+.thinking_box {
+    background-color: #161616 !important;
+    padding: 16px !important;
+    border-left: 5px solid #0072BB !important;
+    border-radius: 10px !important;
+    color: white !important;
+    margin-top: 10px !important;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+}
 
-    /* ======== ASSISTANT MESSAGE BUBBLE ======== */
-    .assistant_msg {
-        background-color: #161616 !important;
-        padding: 14px;
-        border-radius: 10px;
-        color: #FFFFFF !important;
-        border-left: 4px solid #00A652 !important;
-        margin-bottom: 8px;
-    }
+/* ================== INPUT ================== */
+div[data-baseweb="textarea"] textarea {
+    background: #161616 !important;
+    border: 2px solid #003D73 !important;
+    border-radius: 10px !important;
+    color: white !important;
+    padding: 10px !important;
+}
 
-    /* ======== THINKING BOX ======== */
-    .thinking_box {
-        background-color: #161616 !important;
-        padding: 16px;
-        border-radius: 10px;
-        border-left: 4px solid #0072BB !important;
-        color: white !important;
-        margin-top: 10px;
-        white-space: normal;
-        word-wrap: break-word;
-    }
+/* ================== BUTTONS ================== */
+button, button * {
+    background-color: #003D73 !important;
+    color: #fff !important;
+    border-radius: 6px !important;
+}
+button:hover {
+    background-color: #0072BB !important;
+}
 
 </style>
 """, unsafe_allow_html=True)
