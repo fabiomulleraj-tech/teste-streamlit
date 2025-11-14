@@ -17,7 +17,7 @@ from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
 # ---------------------------------------------------------
-# ESTADO GLOBAL
+# SESSION INITIALIZATION
 # ---------------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -25,9 +25,8 @@ if "logged_in" not in st.session_state:
 if "username" not in st.session_state:
     st.session_state.username = None
 
-
 # ---------------------------------------------------------
-# CONFIGURAÇÃO DO AD
+# AD SERVERS
 # ---------------------------------------------------------
 AD_SERVERS = [
     "ldaps://SRVADPRD.central.local:636",
@@ -39,58 +38,44 @@ def authenticate_ad(username, password):
 
     tls = Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
 
-    last_error = None
+    last_error = ""
 
     for srv in AD_SERVERS:
         try:
             server = Server(srv, use_ssl=True, get_info=ALL, tls=tls)
-
-            conn = Connection(
-                server,
-                user=user_dn,
-                password=password,
-                authentication=SIMPLE,
-                auto_bind=True
-            )
-
+            conn = Connection(server, user=user_dn, password=password, authentication=SIMPLE, auto_bind=True)
             conn.unbind()
             return True
-
         except Exception as e:
             last_error = str(e)
-            continue
 
     st.error(f"Falha AD: {last_error}")
     return False
 
-
 # ---------------------------------------------------------
-# TELA DE LOGIN (não repetir código)
+# LOGIN PAGE
 # ---------------------------------------------------------
 if not st.session_state.logged_in:
-
     st.title("🔐 Login (Active Directory)")
 
-    username_input = st.text_input("Usuário (apenas o nome, sem domínio)")
-    password_input = st.text_input("Senha", type="password")
+    username = st.text_input("Usuário (sem domínio)")
+    password = st.text_input("Senha", type="password")
 
     if st.button("Entrar"):
-
-        if authenticate_ad(username_input, password_input):
+        if authenticate_ad(username, password):
             st.session_state.logged_in = True
-            st.session_state.username = username_input
-            st.success("✅ Autenticado!")
+            st.session_state.username = username
+            st.success("✅ Autenticado com sucesso!")
             st.rerun()
         else:
             st.error("❌ Usuário ou senha inválidos.")
 
-    st.stop()  # <-- impede o app de continuar se não estiver logado
-
+    st.stop()   # <- IMPEDIR QUE A PÁGINA CONTINUE
 
 # ---------------------------------------------------------
-# ÁREA LOGADA
+# USER LOGGED — NORMAL APP EXECUTION
 # ---------------------------------------------------------
-st.sidebar.success(f"Logado como: {st.session_state.username}")
+st.sidebar.success(f"👤 Logado como: {st.session_state.username}")
 
 if st.sidebar.button("Sair"):
     st.session_state.logged_in = False
