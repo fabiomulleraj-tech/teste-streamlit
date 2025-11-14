@@ -115,7 +115,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("💁‍♂️ Pergunte ao Bentinho")
-st.caption("Não esqueça de selecionar a área que deseja a informação ao lado 👈")
+st.caption("Não esqueça de selecionar o agente que deseja a informação ao lado 👈")
 
 
 ACCOUNT = "A6108453355571-ALMEIDAJR"
@@ -405,7 +405,7 @@ if prompt:
     #with st.spinner(f"Agente de {selected_agent} pensando..."):
     #    resposta = send_prompt_to_cortex(prompt, agent_name, jwt_token)
     status_placeholder = st.empty()
-    status_placeholder.markdown(f"🧠 Agente de **{selected_agent}** pensando...")
+    status_placeholder.markdown(f"🧠 Agente **{selected_agent}** pensando...")
 
     resposta = send_prompt_to_cortex(prompt, agent_name, jwt_token)
 
