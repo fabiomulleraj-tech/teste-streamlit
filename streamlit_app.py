@@ -182,6 +182,39 @@ def send_prompt_to_cortex(prompt, agent, jwt):
     thinking = st.empty()
     chat = st.empty()
 
+    # ------------------------------------------------------
+    # THINKING HANDLER — cobre todos os formatos do Cortex
+    # ------------------------------------------------------
+    def extract_thinking(data):
+        # 1. Formato simples: { "thinking": { "text": "..." } }
+        if "thinking" in data:
+            t = data["thinking"]
+            if isinstance(t, dict):
+                txt = t.get("text")
+                if txt:
+                    return txt
+            if isinstance(t, str):  # fallback raro
+                return t
+
+        # 2. Formato dentro de content[]
+        if "content" in data and isinstance(data["content"], list):
+            for part in data["content"]:
+                if part.get("type") == "thinking":
+                    t = part.get("thinking", {}).get("text")
+                    if t:
+                        return t
+
+        # 3. Formato no output
+        if "output" in data and isinstance(data["output"], dict):
+            if "thinking" in data["output"]:
+                t = data["output"]["thinking"].get("text")
+                if t:
+                    return t
+
+        return None
+
+    # ------------------------------------------------------
+
     for raw in response.iter_lines():
         if not raw:
             continue
@@ -196,31 +229,20 @@ def send_prompt_to_cortex(prompt, agent, jwt):
         except:
             continue
 
+        # TENTA EXTRAIR THINKING
+        thinking_text = extract_thinking(data)
+        if thinking_text:
+            thinking.markdown(
+                f"🧠 **Pensando...**\n\n```\n{thinking_text}\n```"
+            )
+
         # STREAMING NORMAL
-        # THINKING — formato direto
-        if "thinking" in data:
-            txt = data["thinking"].get("text", "") if isinstance(data["thinking"], dict) else str(data["thinking"])
-            if txt:
-                thinking.markdown(
-                    f"🧠 **Pensando...**\n\n```\n{txt}\n```"
-                )
-
-        # THINKING — formato dentro de content[]
-        if "content" in data:
-            for part in data["content"]:
-                if part.get("type") == "thinking":
-                    txt = part.get("thinking", {}).get("text", "")
-                    if txt:
-                        thinking.markdown(
-                            f"🧠 **Pensando...**\n\n```\n{txt}\n```"
-                        )
-
         if "output" in data:
-            streamed_text += data["output"]["text"]
+            streamed_text += data["output"].get("text", "")
             chat.markdown(streamed_text)
             continue
 
-        # PACOTE FINAL (schema_version)
+        # PACOTE FINAL
         if "schema_version" in data:
             for block in data.get("content", []):
                 if block.get("type") == "text":
@@ -229,11 +251,9 @@ def send_prompt_to_cortex(prompt, agent, jwt):
 
     thinking.empty()
 
-    # Se teve texto no streaming → usa
     if streamed_text.strip():
         return streamed_text.strip()
 
-    # Se não teve streaming, mas teve texto final → usa
     if final_text:
         return final_text.strip()
 
