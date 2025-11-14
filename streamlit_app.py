@@ -23,8 +23,8 @@ st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 st.session_state.setdefault("logged_in", False)
 st.session_state.setdefault("username", None)
 
-st._config.set_option("server.cookieSameSite", "lax")
-st._config.set_option("server.cookieSecure", False)
+#st._config.set_option("server.cookieSameSite", "lax")
+#st._config.set_option("server.cookieSecure", False)
 
 # ---------------------------------------------------------
 # SESSION INITIALIZATION
