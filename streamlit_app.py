@@ -226,7 +226,16 @@ def send_prompt_to_cortex(prompt, agent, jwt_token, debug=False):
                         data = json.loads(raw)
                     except Exception:
                         if debug:
-                            st.sidebar.warning(f"SSE ignorado (não-JSON): {raw}")
+                            st.sidebar.warning(f"SSE ignorado (não-JSON): {raw[:200]}...")
+                        continue
+
+                    # Ignorar pacotes gigantes de resposta final (schema_version / role / content)
+                    if isinstance(data, dict) and (
+                        "schema_version" in data 
+                        or ("role" in data and "content" in data)
+                    ):
+                        if debug:
+                            st.sidebar.info("📦 SSE ignorado (pacote final do assistente, não-streaming).")
                         continue
 
                     # Renderizar
