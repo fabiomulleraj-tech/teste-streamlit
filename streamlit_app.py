@@ -268,10 +268,10 @@ prompt = st.chat_input("Digite sua pergunta...")
 
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
-    st.chat_message("user").write(prompt)
+    st.chat_message("user", avatar="🤔").write(prompt)
 
-    with st.spinner(f"Consultando agente {selected_agent}..."):
+    with st.spinner(f"Agente de {selected_agent} pensando..."):
         resposta = send_prompt_to_cortex(prompt, agent_name, jwt_token)
 
-    st.chat_message("assistant").write(resposta)
+    st.chat_message("assistant", avatar="💁‍♂️").write(resposta)
     st.session_state.messages.append({"role": "assistant", "content": resposta})
