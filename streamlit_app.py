@@ -14,6 +14,12 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "username" not in st.session_state:
+    st.session_state.username = None
+
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DO AD
 # ---------------------------------------------------------
@@ -72,10 +78,37 @@ if not st.session_state.logged_in:
             st.error("❌ Usuário ou senha inválidos.")
 
     st.stop()
+    
+if authenticate_ad(username, password):
+    st.session_state.logged_in = True
+    st.session_state.username = username
+    st.success(f"Bem-vindo, {username}!")
+    st.experimental_rerun()   # ← garante que a tela já vire para o conteúdo
+else:
+    st.error("Usuário ou senha inválidos.")
 
+if not st.session_state.logged_in:
+    st.title("Login - Almeida Junior")
 
+    username = st.text_input("Usuário")
+    password = st.text_input("Senha", type="password")
 
-st.sidebar.success(f"👤 Usuário: {st.session_state.user}")
+    if st.button("Entrar"):
+        if authenticate_ad(username, password):
+            st.session_state.logged_in = True
+            st.session_state.username = username
+            st.experimental_rerun()
+        else:
+            st.error("Usuário ou senha inválidos.")
+
+    st.stop()  # ⛔ impede o resto da página de renderizar
+
+st.sidebar.success(f"Logado como: {st.session_state.username}")
+
+if st.sidebar.button("Sair"):
+    st.session_state.logged_in = False
+    st.session_state.username = None
+    st.experimental_rerun()
 
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
