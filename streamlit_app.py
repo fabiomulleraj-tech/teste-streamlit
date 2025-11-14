@@ -176,47 +176,28 @@ def send_prompt_to_cortex(prompt, agent, jwt):
         "messages": [
             {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt}
-                ]
+                "content": [{"type": "text", "text": prompt}]
             }
         ]
     }
 
     response = requests.post(url, headers=headers, json=body, stream=True)
 
+    # CAIXAS STREAMLIT
     thinking_box = st.empty()
     answer_box = st.empty()
 
+    # BUFFERS
     thinking_buffer = ""
     answer_buffer = ""
     final_answer = None
+    current_event = None
 
-    for raw in response.iter_lines():
-        if not raw:
-            continue
-
-        line = raw.decode("utf-8", errors="ignore").strip()
-
-        # 1) Capturar "event:"
-        if line.startswith("event:"):
-            current_event = line.replace("event:", "").strip()
-            continue
-
-        # 2) Capturar "data:"
-        if line.startswith("data:"):
-            raw_json = line.replace("data:", "").strip()
-            if raw_json == "[DONE]":
-                break
-
-            try:
-                data = json.loads(raw_json)
-            except:
-                continue
-            def render_thinking(text):
-                safe_text = text.replace("\n", "<br>")
-                thinking_box.markdown(
-                    f"""
+    # ---- Renderizador HTML Responsivo para o pensamento ----
+    def render_thinking(text):
+        safe_text = text.replace("\n", "<br>")
+        thinking_box.markdown(
+            f"""
             <div style="
                 background-color:#111;
                 padding:12px;
@@ -233,48 +214,73 @@ def send_prompt_to_cortex(prompt, agent, jwt):
                 {safe_text}
             </div>
             """,
-                    unsafe_allow_html=True
-                )
+            unsafe_allow_html=True
+        )
 
-            # THINKING STREAM (token a token)
-            if current_event == "response.thinking.delta":
-                delta = data.get("text", "")
-                thinking_buffer += delta
-                render_thinking(thinking_buffer)
-
-            # THINKING FINAL
-            elif current_event == "response.thinking":
-                txt = data.get("text", "")
-                thinking_buffer = txt
-                render_thinking(txt)
-
-            # RESPOSTA STREAM (token a token)
-            elif current_event == "response.text.delta":
-                delta = data.get("text", "")
-                answer_buffer += delta
-                answer_box.markdown(answer_buffer)
-
-            # RESPOSTA FINAL consolidada
-            elif current_event == "response":
-                for block in data.get("content", []):
-                    if block.get("type") == "text":
-                        final_answer = block.get("text")
-
+    # ------------------ LOOP SSE ------------------
+    for raw in response.iter_lines():
+        if not raw:
             continue
 
+        line = raw.decode("utf-8", errors="ignore").strip()
+
+        # Identifica o tipo do evento
+        if line.startswith("event:"):
+            current_event = line.replace("event:", "").strip()
+            continue
+
+        # Dados do evento
+        if not line.startswith("data:"):
+            continue
+
+        raw_json = line.replace("data:", "").strip()
+
+        if raw_json == "[DONE]":
+            break
+
+        try:
+            data = json.loads(raw_json)
+        except:
+            continue
+
+        # ---------------- THINKING STREAM ----------------
+        if current_event == "response.thinking.delta":
+            delta = data.get("text", "")
+            thinking_buffer += delta
+            render_thinking(thinking_buffer)
+
+        elif current_event == "response.thinking":
+            txt = data.get("text", "")
+            thinking_buffer = txt
+            render_thinking(txt)
+
+        # ---------------- ANSWER STREAM ----------------
+        elif current_event == "response.text.delta":
+            delta = data.get("text", "")
+            answer_buffer += delta
+            answer_box.markdown(answer_buffer)
+
+        # ---------------- FINAL BLOCK ----------------
+        elif current_event == "response":
+            for block in data.get("content", []):
+                if block.get("type") == "text":
+                    final_answer = block.get("text")
+
+    # Remove o box de pensamento
     thinking_box.empty()
 
+    # ---------------- RETORNO FINAL ----------------
+    # 1) Se houve streaming da resposta → use-a
+    if answer_buffer.strip():
+        return answer_buffer.strip()
 
-    # PRIORIDADE 1 → Streaming token-a-token
-    if streamed_text.strip():
-        return streamed_text.strip()
+    # 2) Senão, use a resposta final consolidada
+    if final_answer and final_answer.strip():
+        return final_answer.strip()
 
-    # PRIORIDADE 2 → Resposta final (quando não houve streaming)
-    if final_text and final_text.strip():
-        return final_text.strip()
-
-    # PRIORIDADE 3 → Nada encontrado
+    # 3) Último caso
     return "⚠️ Nenhum conteúdo retornado."
+
 
 
 # ---------------------------------------------------------
@@ -332,4 +338,5 @@ if prompt:
 
 
     st.chat_message("assistant", avatar="💁‍♂️").write(resposta)
-    st.session_state.messages.append({"role": "assistant", "content": resposta})
+    st.session_state.messages.append({"role": "assistant", "content": resposta,  "avatar": "💁‍♂️"})
+    
