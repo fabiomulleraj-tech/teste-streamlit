@@ -14,6 +14,8 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 
+st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
+
 # ---------------------------------------------------------
 # ESTADO GLOBAL
 # ---------------------------------------------------------
@@ -98,7 +100,7 @@ if st.sidebar.button("Sair"):
 # ---------------------------------------------------------
 # CONFIGURAÇÕES BÁSICAS
 # ---------------------------------------------------------
-st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
+
 st.markdown("""
 <style>
 
