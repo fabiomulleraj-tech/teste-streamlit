@@ -258,7 +258,7 @@ def send_prompt_to_cortex(prompt, agent, jwt):
         elif current_event == "response.text.delta":
             delta = data.get("text", "")
             answer_buffer += delta
-            answer_box.markdown(answer_buffer)
+            #answer_box.markdown(answer_buffer)
 
         # ---------------- FINAL BLOCK ----------------
         elif current_event == "response":
