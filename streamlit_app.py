@@ -60,6 +60,7 @@ def authenticate_ad(username, password):
     return False
 
 # ----- LOGIN VIA COOKIE -----
+
 saved_user = cookie_manager.get("aj_logged_user")
 
 if saved_user and not st.session_state.logged_in:
@@ -77,18 +78,14 @@ if not st.session_state.logged_in:
 
     if st.button("Entrar"):
         if authenticate_ad(username, password):
+            # cria cookie persistente
+            cookie_manager.set("aj_logged_user", username, expires_at=datetime.datetime(2100, 1, 1))
+
             st.session_state.logged_in = True
             st.session_state.username = username
 
-            # cria cookie persistente
-            cookie_manager.set(
-                "aj_logged_user",
-                username,
-                expires_at=datetime.datetime(2100, 1, 1)
-            )
-
             st.success("✅ Autenticado com sucesso!")
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.error("❌ Usuário ou senha inválidos.")
 
