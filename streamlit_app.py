@@ -13,60 +13,49 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 from ldap3 import Server, Connection, ALL
 
+# Configuração AD
+AD_SERVER = "ldaps://SRVADPRD.CENTRAL.LOCAL"   # ou ldap://
+AD_DOMAIN = "CENTRAL"                       # Ex: CENTRAL
+AD_BASE = "DC=central,DC=local"             # ajuste conforme o seu
 
-st.title("Login - AD On-Premises")
-
-AD_SERVER = "ldap://srvadprd.central.local"     # ou ldaps://
-AD_USER_BASE = "OU=central,DC=central,DC=local"
-
-def authenticate(username, password):
-    try:
-        user_dn = f"CN={username},{AD_USER_BASE}"
-        server = Server(AD_SERVER, get_info=ALL)
-        conn = Connection(server, user=user_dn, password=password)
-
-        if conn.bind():
-            conn.unbind()
-            return True
-        return False
-
-    except Exception as e:
-        return False
-
-
-# ---- FORMULÁRIO ----
-with st.form("login_form"):
-    user = st.text_input("Usuário AD")
-    pwd = st.text_input("Senha", type="password")
-    submit = st.form_submit_button("Entrar")
-
-if submit:
-    if authenticate(user, pwd):
-        st.success(f"Bem-vindo, {user}!")
-        st.session_state["logged"] = True
-    else:
-        st.error("Usuário ou senha incorretos!")
-
-# USERS = st.secrets["auth"]
-
-
+# Estado
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
+def authenticate_ad(username, password):
+    try:
+        user_with_domain = f"{AD_DOMAIN}\\{username}"
+
+        server = Server(AD_SERVER, get_info=ALL)
+        conn = Connection(
+            server,
+            user=user_with_domain,
+            password=password,
+            authentication=NTLM,     # AD on-premises
+            auto_bind=True
+        )
+        conn.unbind()
+        return True
+    except:
+        return False
+
+# Tela de login
 if not st.session_state.logged_in:
-    st.title("🔐 Login necessário")
+    st.title("🔐 Login")
+
     username = st.text_input("Usuário")
     password = st.text_input("Senha", type="password")
+    btn = st.button("Entrar")
 
-    if st.button("Entrar"):
-        if username in USERS and USERS[username] == password:
+    if btn:
+        if authenticate_ad(username, password):
             st.session_state.logged_in = True
-            st.session_state.user = username
-            st.success(f"✅ Bem-vindo, {username}!")
             st.rerun()
         else:
-            st.error("❌ Usuário ou senha inválidos.")
+            st.error("Usuário ou senha inválidos")
+
     st.stop()
+
 
 st.sidebar.success(f"👤 Usuário: {st.session_state.user}")
 
