@@ -182,7 +182,6 @@ def send_prompt_to_cortex(prompt, agent, jwt_token, debug=False):
         ]
     }
 
-    # 🔍 Mostra detalhes de requisição no modo debug
     if debug:
         with st.expander("🧩 DEBUG REQUEST", expanded=False):
             st.write("**URL:**", url)
@@ -203,47 +202,55 @@ def send_prompt_to_cortex(prompt, agent, jwt_token, debug=False):
             thinking_box = st.empty()
             chat_box = st.empty()
 
-            # ✅ percorre o stream manualmente e decodifica bytes -> texto
             for raw_line in resp.iter_lines():
                 if not raw_line:
                     continue
+
                 try:
                     line = raw_line.decode("utf-8").strip()
-                    if line.startswith("data: "):
-                        data = json.loads(line[len("data: "):])
 
-                        # mostra raciocínio
-                        if "thinking" in data:
-                            thinking_box.markdown(
-                                f"🧠 **Pensando...**\n\n```\n{data['thinking']}\n```"
-                            )
-
-                        # mostra tokens de saída
-                        if "output" in data:
-                            full_text += data["output"].get("text", "")
-                            chat_box.markdown(full_text)
-
-                        # 🔍 exibe eventos SSE no modo debug
+                    # SOMENTE processa linhas "data: "
+                    if not line.startswith("data: "):
                         if debug:
-                            with st.expander("📡 DEBUG SSE EVENT", expanded=False):
-                                st.json(data)
+                            st.sidebar.info(f"Ignorando SSE não-data: {line}")
+                        continue
+
+                    raw = line[6:].strip()
+
+                    # Ignorar keep-alives, DONE, etc.
+                    if raw in ("", "[DONE]", "null"):
+                        continue
+
+                    # Tentar JSON
+                    try:
+                        data = json.loads(raw)
+                    except Exception:
+                        if debug:
+                            st.sidebar.warning(f"SSE ignorado (não-JSON): {raw}")
+                        continue
+
+                    # Renderizar
+                    if "thinking" in data:
+                        thinking_box.markdown(
+                            f"🧠 **Pensando...**\n\n```\n{data['thinking']}\n```"
+                        )
+
+                    if "output" in data:
+                        full_text += data["output"].get("text", "")
+                        chat_box.markdown(full_text)
 
                 except Exception as e:
                     if debug:
-                        st.sidebar.warning(f"⚠️ Falha ao processar chunk SSE: {e}")
+                        st.sidebar.error(f"⚠️ Erro processando linha SSE: {e}")
 
             thinking_box.empty()
-
-            if debug:
-                with st.expander("✅ DEBUG FINAL OUTPUT", expanded=True):
-                    st.write(full_text)
-
             return full_text.strip() or "⚠️ Nenhum conteúdo retornado."
 
     except Exception as e:
         if debug:
             st.sidebar.error(f"❌ Erro no streaming SSE: {e}")
         return f"❌ Erro ao consultar o agente: {e}"
+
 
 # ---------------------------------------------------------
 # INICIALIZA JWT E CHAT
