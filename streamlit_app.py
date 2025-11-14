@@ -224,6 +224,9 @@ def send_prompt_to_cortex(prompt, agent, jwt):
             continue
 
         raw_json = line[6:]
+        if '"thinking"' in raw_json:
+            st.write("RAW THINKING EVENT:")
+            st.code(raw_json)
         try:
             data = json.loads(raw_json)
         except:
