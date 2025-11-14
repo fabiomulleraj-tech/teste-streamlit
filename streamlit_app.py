@@ -11,8 +11,43 @@ import urllib.parse
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
+from ldap3 import Server, Connection, ALL
 
-USERS = st.secrets["auth"]
+
+st.title("Login - AD On-Premises")
+
+AD_SERVER = "ldap://srvadprd.central.local"     # ou ldaps://
+AD_USER_BASE = "OU=central,DC=central,DC=local"
+
+def authenticate(username, password):
+    try:
+        user_dn = f"CN={username},{AD_USER_BASE}"
+        server = Server(AD_SERVER, get_info=ALL)
+        conn = Connection(server, user=user_dn, password=password)
+
+        if conn.bind():
+            conn.unbind()
+            return True
+        return False
+
+    except Exception as e:
+        return False
+
+
+# ---- FORMULÁRIO ----
+with st.form("login_form"):
+    user = st.text_input("Usuário AD")
+    pwd = st.text_input("Senha", type="password")
+    submit = st.form_submit_button("Entrar")
+
+if submit:
+    if authenticate(user, pwd):
+        st.success(f"Bem-vindo, {user}!")
+        st.session_state["logged"] = True
+    else:
+        st.error("Usuário ou senha incorretos!")
+
+# USERS = st.secrets["auth"]
 
 
 if "logged_in" not in st.session_state:
