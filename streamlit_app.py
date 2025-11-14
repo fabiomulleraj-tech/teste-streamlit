@@ -197,9 +197,23 @@ def send_prompt_to_cortex(prompt, agent, jwt):
             continue
 
         # STREAMING NORMAL
+        # THINKING — formato direto
         if "thinking" in data:
-            thinking.markdown(f"🧠 Pensando...\n```\n{data['thinking']}\n```")
-            continue
+            txt = data["thinking"].get("text", "") if isinstance(data["thinking"], dict) else str(data["thinking"])
+            if txt:
+                thinking.markdown(
+                    f"🧠 **Pensando...**\n\n```\n{txt}\n```"
+                )
+
+        # THINKING — formato dentro de content[]
+        if "content" in data:
+            for part in data["content"]:
+                if part.get("type") == "thinking":
+                    txt = part.get("thinking", {}).get("text", "")
+                    if txt:
+                        thinking.markdown(
+                            f"🧠 **Pensando...**\n\n```\n{txt}\n```"
+                        )
 
         if "output" in data:
             streamed_text += data["output"]["text"]
