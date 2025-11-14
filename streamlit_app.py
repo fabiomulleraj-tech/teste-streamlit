@@ -172,108 +172,83 @@ def send_prompt_to_cortex(prompt, agent, jwt):
         "Content-Type": "application/json",
     }
 
-    body = {"messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}]}
+    body = {
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt}
+                ]
+            }
+        ]
+    }
 
     response = requests.post(url, headers=headers, json=body, stream=True)
 
-    streamed_text = ""
-    final_text = None
+    thinking_box = st.empty()
+    answer_box = st.empty()
 
-    thinking = st.empty()
-    chat = st.empty()
-
-    # ------------------------------------------------------
-    # THINKING HANDLER — cobre todos os formatos do Cortex
-    # ------------------------------------------------------
-    def extract_thinking(data):
-        # 1. Formato simples: { "thinking": { "text": "..." } }
-        if "thinking" in data:
-            t = data["thinking"]
-            if isinstance(t, dict):
-                txt = t.get("text")
-                if txt:
-                    return txt
-            if isinstance(t, str):  # fallback raro
-                return t
-
-        # 2. Formato dentro de content[]
-        if "content" in data and isinstance(data["content"], list):
-            for part in data["content"]:
-                if part.get("type") == "thinking":
-                    t = part.get("thinking", {}).get("text")
-                    if t:
-                        return t
-
-        # 3. Formato no output
-        if "output" in data and isinstance(data["output"], dict):
-            if "thinking" in data["output"]:
-                t = data["output"]["thinking"].get("text")
-                if t:
-                    return t
-
-        return None
-
-    # ------------------------------------------------------
+    thinking_buffer = ""
+    answer_buffer = ""
+    final_answer = None
 
     for raw in response.iter_lines():
         if not raw:
             continue
 
-        line = raw.decode().strip()
-        if not line.startswith("data: "):
+        line = raw.decode("utf-8", errors="ignore").strip()
+
+        # 1) Capturar "event:"
+        if line.startswith("event:"):
+            current_event = line.replace("event:", "").strip()
             continue
 
-        raw_json = line[6:]
-        if '"thinking"' in raw_json:
-            st.write("RAW THINKING EVENT:")
-            st.code(raw_json)
-        try:
-            data = json.loads(raw_json)
-        except:
-            continue
+        # 2) Capturar "data:"
+        if line.startswith("data:"):
+            raw_json = line.replace("data:", "").strip()
+            if raw_json == "[DONE]":
+                break
 
-        # TENTA EXTRAIR THINKING
-        thinking_text = extract_thinking(data)
-        if thinking_text:
-            thinking.markdown(
-                f"🧠 **Pensando...**\n\n```\n{thinking_text}\n```"
-            )
+            try:
+                data = json.loads(raw_json)
+            except:
+                continue
 
-        # STREAMING NORMAL
-        if "output" in data:
-            streamed_text += data["output"].get("text", "")
-            chat.markdown(streamed_text)
-            continue
+            # THINKING STREAM (token a token)
+            if current_event == "response.thinking.delta":
+                delta = data.get("text", "")
+                thinking_buffer += delta
+                thinking_box.markdown(f"🧠 **Pensando...**\n\n```\n{thinking_buffer}\n```")
 
-        # PACOTE FINAL
-        # PACOTE FINAL (schema_version — contém thinking e resposta final)
-        if "schema_version" in data:
+            # THINKING FINAL
+            elif current_event == "response.thinking":
+                txt = data.get("text", "")
+                thinking_buffer = txt
+                thinking_box.markdown(f"🧠 **Pensando...**\n\n```\n{txt}\n```")
 
-            # 1️⃣ MOSTRAR THINKING FINAL — igual ao Snowflake Intelligence
-            for block in data.get("content", []):
-                if block.get("type") == "thinking":
-                    txt = block.get("thinking", {}).get("text", "")
-                    if txt:
-                        thinking.markdown(
-                            f"🧠 **Pensando...**\n\n```\n{txt}\n```"
-                        )
+            # RESPOSTA STREAM (token a token)
+            elif current_event == "response.text.delta":
+                delta = data.get("text", "")
+                answer_buffer += delta
+                answer_box.markdown(answer_buffer)
 
-            # 2️⃣ PEGAR O TEXTO FINAL
-            for block in data.get("content", []):
-                if block.get("type") == "text":
-                    final_text = block.get("text", "")
+            # RESPOSTA FINAL consolidada
+            elif current_event == "response":
+                for block in data.get("content", []):
+                    if block.get("type") == "text":
+                        final_answer = block.get("text")
 
             continue
 
-    thinking.empty()
+    thinking_box.empty()
 
-    if streamed_text.strip():
-        return streamed_text.strip()
+    if answer_buffer:
+        return answer_buffer.strip()
 
-    if final_text:
-        return final_text.strip()
+    if final_answer:
+        return final_answer.strip()
 
-    return "⚠️ Nenhum conteúdo retornado."
+    return "⚠ Nenhum conteúdo retornado."
 
 
 # ---------------------------------------------------------
