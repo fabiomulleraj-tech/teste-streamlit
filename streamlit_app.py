@@ -8,49 +8,45 @@ import sseclient
 import io
 import msal
 import urllib.parse
+import ssl
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
-from ldap3 import Server, Connection, ALL, NTLM
+from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DO AD
 # ---------------------------------------------------------
 AD_SERVERS = [
-    "ldap://SRVADPRD.central.local",
-    "ldap://SRVADPRD2.central.local"
+    "ldaps://SRVADPRD.central.local:636",
+    "ldaps://SRVADPRD2.central.local:636"
 ]
 
-AD_DOMAIN = "CENTRAL"
-AD_BASE = "DC=central,DC=local"
-
-
-# ---------------------------------------------------------
-# FUNÇÃO DE AUTENTICAÇÃO
-# ---------------------------------------------------------
 def authenticate_ad(username, password):
-    user_dn = f"{AD_DOMAIN}\\{username}"
+    user_dn = f"CENTRAL\\{username}"
+
+    # TLS sem validação forte (evita erro de certificado self-signed)
+    tls = Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
 
     for srv in AD_SERVERS:
         try:
-            server = Server(srv, get_info=ALL)
+            server = Server(srv, use_ssl=True, get_info=ALL, tls=tls)
 
             conn = Connection(
                 server,
                 user=user_dn,
                 password=password,
-                authentication=NTLM,
+                authentication=SIMPLE,   # ← NÃO USA NTLM
                 auto_bind=True
             )
 
             conn.unbind()
-            return True  # autenticado com sucesso
+            return True
 
         except Exception as e:
             last_error = str(e)
             continue
 
-    # Nenhum controlador autenticou
     st.error(f"Falha AD: {last_error}")
     return False
 
