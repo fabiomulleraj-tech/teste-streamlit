@@ -18,7 +18,7 @@ from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 
 
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
-@st.cache_resource(suppress_st_warning=True)
+#@st.cache_resource(suppress_st_warning=True)
 def get_manager():
     return stx.CookieManager()
 
