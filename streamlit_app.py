@@ -114,7 +114,7 @@ if st.sidebar.button("Sair"):
     st.session_state.username = None
     st.rerun()
    
-st.sidebar.success("📌 Cookie detectado:", cookie_manager.get("aj_logged_user"))
+st.sidebar.success("📌 Cookie detectado:", + str(cookie_manager.get("aj_logged_user")))
 
 
 
