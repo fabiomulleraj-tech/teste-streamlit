@@ -5,7 +5,6 @@ import json
 import base64
 import hashlib
 import ssl
-import extra_streamlit_components as stx
 from datetime import datetime, timedelta
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -17,34 +16,8 @@ from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 # ================================================================================
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
-cookie_manager = stx.CookieManager(key="aj-cookie-key")
-cookie_manager  # renderiza
-
 # ================================================================================
-# ⚠️ COOKIE VIA HEADER HTTP (100% funcional no Chrome)
-# ================================================================================
-try:
-    from streamlit.web.server.websocket_headers import _create_cookie
-except:
-    from streamlit.runtime.scriptrunner import add_script_run_ctx  # fallback
-    raise Exception("Versão do Streamlit não compatível com _create_cookie")
-
-
-def set_http_cookie(name, value, days=30):
-    """Cria cookie HttpOnly/First-Party via header Set-Cookie (funciona 100%)"""
-    _create_cookie(
-        name=name,
-        value=value,
-        max_age=days * 24 * 3600,
-        path="/",
-        secure=True,
-        samesite="None",
-        httponly=True,
-        domain="ai.almeidajunior.com.br"
-    )
-
-# ================================================================================
-# ⚠️ SESSION STATE
+# ⚠️ SESSION STATE (SEM COOKIES)
 # ================================================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -79,16 +52,7 @@ def authenticate_ad(username, password):
     return False
 
 # ================================================================================
-# ⚠️ LOGIN VIA COOKIE
-# ================================================================================
-saved_user = cookie_manager.get("aj_logged_user")
-
-if saved_user and not st.session_state.logged_in:
-    st.session_state.logged_in = True
-    st.session_state.username = saved_user
-
-# ================================================================================
-# ⚠️ PÁGINA DE LOGIN
+# ⚠️ PÁGINA DE LOGIN (SEM QUALQUER COOKIE)
 # ================================================================================
 if not st.session_state.logged_in:
 
@@ -99,14 +63,9 @@ if not st.session_state.logged_in:
 
     if st.button("Entrar"):
         if authenticate_ad(username, password):
-
-            # Criar cookie HTTP real (HttpOnly + Secure)
-            set_http_cookie("aj_logged_user", username, days=1)
-
             st.session_state.logged_in = True
             st.session_state.username = username
             st.rerun()
-
         else:
             st.error("❌ Usuário ou senha inválidos.")
 
@@ -118,13 +77,9 @@ if not st.session_state.logged_in:
 st.sidebar.success(f"👤 Logado como: {st.session_state.username}")
 
 if st.sidebar.button("Sair"):
-    set_http_cookie("aj_logged_user", "deleted", days=-1)
     st.session_state.logged_in = False
     st.session_state.username = None
     st.rerun()
-
-# Debug
-st.write("📌 Cookie detectado:", cookie_manager.get("aj_logged_user"))
 
 # ================================================================================
 # CSS
@@ -269,6 +224,7 @@ def send_prompt_to_cortex(prompt, agent, jwt):
 
     return answer.strip()
 
+# Histórico
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
