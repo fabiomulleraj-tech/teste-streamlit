@@ -3,7 +3,6 @@ import ssl
 import hashlib
 import os
 import time
-import json
 from ldap3 import Server, Connection, SIMPLE, Tls
 
 # ---------------------------------------------------------
@@ -13,7 +12,6 @@ AD_SERVERS = [
     "ldaps://SRVADPRD.central.local:636",
     "ldaps://SRVADPRD2.central.local:636"
 ]
-
 AD_DOMAIN = "CENTRAL"
 
 # ---------------------------------------------------------
@@ -21,35 +19,34 @@ AD_DOMAIN = "CENTRAL"
 # ---------------------------------------------------------
 COOKIE_NAME = "aj_auth_token"
 COOKIE_DAYS = 90
-TOKEN_EXP_SECONDS = COOKIE_DAYS * 86400
-TOKEN_RENEW_THRESHOLD = 86400 * 5   # renova o token a cada 5 dias
+TOKEN_EXP = COOKIE_DAYS * 86400
+TOKEN_RENEW_THRESHOLD = 5 * 86400  # renova se tiver mais de 5 dias
 
-# “Banco de tokens” em memória (para produção use Redis)
+# Banco de tokens
 if "auth_tokens" not in st.session_state:
-    st.session_state.auth_tokens = {}  # token: data structure
+    st.session_state.auth_tokens = {}
 
 
 # ---------------------------------------------------------
-# AUTENTICAÇÃO NO AD
+# AUTENTICAÇÃO AD
 # ---------------------------------------------------------
 def authenticate_ad(username, password):
     user_dn = f"{AD_DOMAIN}\\{username}"
 
     tls = Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
-    last_error = None
 
+    last_error = None
     for srv in AD_SERVERS:
         try:
-            server = Server(srv, use_ssl=True, get_info=None, tls=tls)
+            server = Server(srv, use_ssl=True, tls=tls)
 
             conn = Connection(
                 server,
                 user=user_dn,
                 password=password,
-                authentication=SIMPLE,   # SIMPLE + DOMAIN\user → funciona no seu AD
+                authentication=SIMPLE,
                 auto_bind=True
             )
-
             conn.unbind()
             return True
 
@@ -57,12 +54,22 @@ def authenticate_ad(username, password):
             last_error = str(e)
             continue
 
-    st.error(f"Falha AD: {last_error}")
+    st.error(f"Erro AD: {last_error}")
     return False
 
 
 # ---------------------------------------------------------
-# CRIAR TOKEN PERSISTENTE DE 90 DIAS
+# IDENTIFICADOR DO NAVEGADOR
+# ---------------------------------------------------------
+def get_browser_id():
+    ua = st.context.headers.get("User-Agent", "")
+    ip = st.context.headers.get("X-Forwarded-For", st.context.client.ip)
+    raw = f"{ua}-{ip}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+# ---------------------------------------------------------
+# CRIAR TOKEN
 # ---------------------------------------------------------
 def create_token(username, browser_id):
     raw = f"{username}-{browser_id}-{os.urandom(32)}-{time.time()}"
@@ -70,15 +77,15 @@ def create_token(username, browser_id):
 
     st.session_state.auth_tokens[token] = {
         "username": username,
-        "browser_id": browser_id,
+        "browser": browser_id,
         "created": time.time(),
-        "expires": time.time() + TOKEN_EXP_SECONDS
+        "expires": time.time() + TOKEN_EXP
     }
 
-    st.experimental_set_cookie(
+    st.cookies.set(
         COOKIE_NAME,
         token,
-        max_age=TOKEN_EXP_SECONDS,
+        max_age=TOKEN_EXP,
         secure=True,
         samesite="Strict"
     )
@@ -87,7 +94,7 @@ def create_token(username, browser_id):
 
 
 # ---------------------------------------------------------
-# RENOVAR TOKEN (sliding expiration)
+# RENOVAÇÃO DO TOKEN
 # ---------------------------------------------------------
 def renew_token_if_needed(token, browser_id):
     data = st.session_state.auth_tokens.get(token)
@@ -96,7 +103,7 @@ def renew_token_if_needed(token, browser_id):
 
     age = time.time() - data["created"]
     if age < TOKEN_RENEW_THRESHOLD:
-        return token  # ainda não precisa renovar
+        return token
 
     username = data["username"]
     new_token = create_token(username, browser_id)
@@ -105,10 +112,10 @@ def renew_token_if_needed(token, browser_id):
 
 
 # ---------------------------------------------------------
-# LOGIN AUTOMÁTICO PELO COOKIE
+# LOGIN AUTOMÁTICO
 # ---------------------------------------------------------
 def auto_login():
-    token = st.experimental_get_cookie(COOKIE_NAME)
+    token = st.cookies.get(COOKIE_NAME)
     if not token:
         return False
 
@@ -116,18 +123,19 @@ def auto_login():
     if not data:
         return False
 
-    # verificação por navegador (User-Agent)
-    browser_id = get_browser_identifier()
-    if data["browser_id"] != browser_id:
-        return False  # impedindo roubo de cookie
+    # validação do navegador
+    browser_id = get_browser_id()
+    if data["browser"] != browser_id:
+        return False
 
+    # expiração
     if data["expires"] < time.time():
-        return False  # expirado
+        return False
 
-    # renova token se necessário
+    # renova token
     new_token = renew_token_if_needed(token, browser_id)
     if new_token != token:
-        st.experimental_set_cookie(COOKIE_NAME, new_token, max_age=TOKEN_EXP_SECONDS)
+        st.cookies.set(COOKIE_NAME, new_token, max_age=TOKEN_EXP)
 
     st.session_state.logged_in = True
     st.session_state.user = data["username"]
@@ -135,43 +143,34 @@ def auto_login():
 
 
 # ---------------------------------------------------------
-# IDENTIFICADOR DO NAVEGADOR
-# ---------------------------------------------------------
-def get_browser_identifier():
-    ua = st.context.headers.get("User-Agent", "")
-    ip = st.context.headers.get("X-Forwarded-For", st.context.client.ip)
-    raw = f"{ua}-{ip}"
-    return hashlib.sha256(raw.encode()).hexdigest()
-
-
-# ---------------------------------------------------------
 # LOGOUT
 # ---------------------------------------------------------
 def logout():
-    token = st.experimental_get_cookie(COOKIE_NAME)
+    token = st.cookies.get(COOKIE_NAME)
+
     if token and token in st.session_state.auth_tokens:
         del st.session_state.auth_tokens[token]
 
-    st.experimental_set_cookie(COOKIE_NAME, "", max_age=0)
+    st.cookies.delete(COOKIE_NAME)
     st.session_state.clear()
     st.rerun()
 
 
 # ---------------------------------------------------------
-# INICIALIZAÇÃO DO LOGIN
+# LOGIN FLOW
 # ---------------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-# Tentativa de login automática
+# 1 - tentativa de login automático
 if not st.session_state.logged_in:
     if auto_login():
         st.success(f"🔓 Login automático como {st.session_state.user}")
         st.rerun()
 
-# Se ainda não estiver logado → tela de login
+# 2 - login manual
 if not st.session_state.logged_in:
-    st.title("🔐 Login Active Directory")
+    st.title("🔐 Login (Active Directory)")
 
     username = st.text_input("Usuário (sem domínio)")
     password = st.text_input("Senha", type="password")
@@ -181,22 +180,21 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.user = username
 
-            browser_id = get_browser_identifier()
+            browser_id = get_browser_id()
             create_token(username, browser_id)
 
-            st.success("✅ Logado com sucesso!")
+            st.success("Login OK!")
             st.rerun()
         else:
-            st.error("❌ Usuário ou senha inválidos.")
+            st.error("Usuário ou senha inválidos")
 
     st.stop()
-
 
 # ---------------------------------------------------------
 # ÁREA LOGADA
 # ---------------------------------------------------------
-st.sidebar.success(f"👤 Usuário: {st.session_state.user}")
+st.sidebar.success(f"👤 Usuário autenticado: {st.session_state.user}")
 st.sidebar.button("🚪 Sair", on_click=logout)
 
-st.title("Bem-vindo ao sistema Bentinho!")
-st.write("Sessão autenticada com persistência de 90 dias.")
+st.title("Bem-vindo, " + st.session_state.user)
+st.write("Sessão com persistência de 90 dias habilitada.")
