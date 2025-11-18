@@ -18,12 +18,18 @@ from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 
 
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
+@st.cache_resource(suppress_st_warning=True)
+def get_manager():
+    return stx.CookieManager()
 
-cookie_manager = stx.CookieManager(key="aj-cookie-key")
-cookie_manager  # <- isto renderiza o componente e ativa cookies
+cookie_manager = get_manager()
 
-st.session_state.setdefault("logged_in", False)
-st.session_state.setdefault("username", None)
+st.subheader("All Cookies:")
+cookies = cookie_manager.get_all()
+st.write(cookies)
+
+#st.session_state.setdefault("logged_in", False)
+#st.session_state.setdefault("username", None)
 
 # ---------------------------------------------------------
 # SESSION INITIALIZATION
@@ -81,14 +87,8 @@ if not st.session_state.logged_in:
     if st.button("Entrar"):
         if authenticate_ad(username, password):
             # cria cookie persistente
-            cookie_manager.set(
-                "aj_logged_user",
-                username,
-                expires_at=datetime.datetime(2100, 1, 1),
-                max_age=3153600000,  # opcional
-                secure=True,
-                same_site="None",
-            )
+            expires = datetime.now() + timedelta(minutes=10)
+            cookie_manager.set("aj_logged_user", username, expires_at=expires)
 
             st.session_state.logged_in = True
             st.session_state.username = username
@@ -112,20 +112,9 @@ if st.sidebar.button("Sair"):
     st.session_state.logged_in = False
     st.session_state.username = None
     st.rerun()
+   
+st.sidebar.success("📌 Cookie detectado:", cookie_manager.get("aj_logged_user"))
 
-if st.sidebar.button("Criar cookie de teste"):
-    cookie_manager.set(
-        "aj_test_cookie",
-        "funcionando",
-        expires_at=datetime.datetime(2100, 1, 1),
-        secure=True,
-        same_site="None"
-    )
-    st.rerun()
-
-    
-st.write("📌 Cookie detectado:", cookie_manager.get("aj_logged_user"))
-st.write("📌 Cookie detectado:", cookie_manager.get("aj_test_cookie"))
 
 
 # ---------------------------------------------------------
