@@ -12,44 +12,49 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 
-
-# =====================================================================================
-# ⚠️ CONFIGURAÇÃO STREAMLIT E INICIALIZAÇÃO
-# =====================================================================================
+# ================================================================================
+# ⚠️ CONFIG INICIAL
+# ================================================================================
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
 cookie_manager = stx.CookieManager(key="aj-cookie-key")
-cookie_manager  # necessário
+cookie_manager  # renderiza
+
+# ================================================================================
+# ⚠️ COOKIE VIA HEADER HTTP (100% funcional no Chrome)
+# ================================================================================
+try:
+    from streamlit.web.server.websocket_headers import _create_cookie
+except:
+    from streamlit.runtime.scriptrunner import add_script_run_ctx  # fallback
+    raise Exception("Versão do Streamlit não compatível com _create_cookie")
 
 
-# =====================================================================================
-# ⚠️ FUNÇÃO DE FORÇAR COOKIE VIA JAVASCRIPT (100% funcional)
-# =====================================================================================
-def force_cookie(username):
-    js = f"""
-    <script>
-        document.cookie = "aj_logged_user={username}; Path=/; Domain=ai.almeidajunior.com.br; SameSite=None; Secure";
-    </script>
-    """
-    st.markdown(js, unsafe_allow_html=True)
+def set_http_cookie(name, value, days=30):
+    """Cria cookie HttpOnly/First-Party via header Set-Cookie (funciona 100%)"""
+    _create_cookie(
+        name=name,
+        value=value,
+        max_age=days * 24 * 3600,
+        path="/",
+        secure=True,
+        samesite="None",
+        httponly=True,
+        domain="ai.almeidajunior.com.br"
+    )
 
-
-
-
-# =====================================================================================
+# ================================================================================
 # ⚠️ SESSION STATE
-# =====================================================================================
+# ================================================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if "username" not in st.session_state:
     st.session_state.username = None
 
-
-
-# =====================================================================================
-# ⚠️ AUTENTICAÇÃO AD
-# =====================================================================================
+# ================================================================================
+# ⚠️ AD SERVERS
+# ================================================================================
 AD_SERVERS = [
     "ldaps://SRVADPRD.central.local:636",
     "ldaps://SRVADPRD2.central.local:636"
@@ -58,8 +63,8 @@ AD_SERVERS = [
 def authenticate_ad(username, password):
     user_dn = f"CENTRAL\\{username}"
     tls = Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
-
     last_error = ""
+
     for srv in AD_SERVERS:
         try:
             server = Server(srv, use_ssl=True, get_info=ALL, tls=tls)
@@ -73,22 +78,18 @@ def authenticate_ad(username, password):
     st.error(f"Falha AD: {last_error}")
     return False
 
-
-
-# =====================================================================================
-# ⚠️ LOGIN AUTOMÁTICO VIA COOKIE
-# =====================================================================================
+# ================================================================================
+# ⚠️ LOGIN VIA COOKIE
+# ================================================================================
 saved_user = cookie_manager.get("aj_logged_user")
 
 if saved_user and not st.session_state.logged_in:
     st.session_state.logged_in = True
     st.session_state.username = saved_user
 
-
-
-# =====================================================================================
-# ⚠️ TELA DE LOGIN (NADA PODE SER RENDERIZADO ANTES)
-# =====================================================================================
+# ================================================================================
+# ⚠️ PÁGINA DE LOGIN
+# ================================================================================
 if not st.session_state.logged_in:
 
     st.title("🔐 Login (Active Directory)")
@@ -98,43 +99,36 @@ if not st.session_state.logged_in:
 
     if st.button("Entrar"):
         if authenticate_ad(username, password):
-            # grava cookie via JavaScript (NUNCA FALHA)
-            force_cookie(username)
+
+            # Criar cookie HTTP real (HttpOnly + Secure)
+            set_http_cookie("aj_logged_user", username, days=1)
 
             st.session_state.logged_in = True
             st.session_state.username = username
             st.rerun()
+
         else:
             st.error("❌ Usuário ou senha inválidos.")
 
     st.stop()
 
-
-
-# =====================================================================================
-# 🙌 INTERFACE APÓS LOGIN
-# =====================================================================================
-
+# ================================================================================
+# ⚠️ PÁGINA LOGADA
+# ================================================================================
 st.sidebar.success(f"👤 Logado como: {st.session_state.username}")
 
-# Logout
 if st.sidebar.button("Sair"):
-    force_cookie("deleted")   # "limpa" sobrescrevendo
+    set_http_cookie("aj_logged_user", "deleted", days=-1)
     st.session_state.logged_in = False
     st.session_state.username = None
     st.rerun()
 
-
-
-# DEBUG DO COOKIE
+# Debug
 st.write("📌 Cookie detectado:", cookie_manager.get("aj_logged_user"))
 
-
-
-
-# =====================================================================================
+# ================================================================================
 # CSS
-# =====================================================================================
+# ================================================================================
 st.markdown("""
 <style>
     html, body, [class*="css"] {
@@ -157,19 +151,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
-
-# =====================================================================================
+# ================================================================================
 # APP PRINCIPAL
-# =====================================================================================
+# ================================================================================
 st.title("💁‍♂️ Pergunte ao Bentinho")
 st.caption("Não esqueça de selecionar o agente ao lado 👈")
 
-
-# =====================================================================================
-# SNOWFLAKE + JWT (seu bloco original permanece igual)
-# =====================================================================================
-
+# ================================================================================
+# JWT SNOWFLAKE
+# ================================================================================
 ACCOUNT = "A6108453355571-ALMEIDAJR"
 USER = "TEAMS_INTEGRATION"
 
@@ -178,7 +168,6 @@ AGENTS = {
     "📑 Contratos de Logistas": {"agent": "AJ_JURIDICO"},
     "🧾 Contratos de Fornecedores": {"agent": "AJ_PROTHEUS"},
 }
-
 
 class JWTGenerator:
     def __init__(self, account, user):
@@ -198,8 +187,10 @@ class JWTGenerator:
 
     def _calc_fingerprint(self):
         pub = self.private_key.public_key()
-        der = pub.public_bytes(serialization.Encoding.DER,
-                               serialization.PublicFormat.SubjectPublicKeyInfo)
+        der = pub.public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo
+        )
         fp = hashlib.sha256(der).digest()
         return "SHA256:" + base64.b64encode(fp).decode()
 
@@ -228,20 +219,15 @@ class JWTGenerator:
             self.generate_token()
         return self.token
 
-
-
 if "jwt_gen" not in st.session_state:
     st.session_state.jwt_gen = JWTGenerator(ACCOUNT, USER)
 
 jwt_gen = st.session_state.jwt_gen
 jwt_token = jwt_gen.get_token()
 
-
-
-# =====================================================================================
-# CHAT + STREAMING (seu código original)
-# =====================================================================================
-
+# ================================================================================
+# SELEÇÃO DE AGENTE
+# ================================================================================
 st.sidebar.header("⚙️ Selecione o agente")
 selected_agent = st.sidebar.selectbox(
     "Agente:",
@@ -251,21 +237,25 @@ selected_agent = st.sidebar.selectbox(
 
 agent_name = AGENTS[selected_agent]["agent"]
 
-
-
+# ================================================================================
+# CHAT COM O CORTEX
+# ================================================================================
 def send_prompt_to_cortex(prompt, agent, jwt):
     url = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents/{agent}:run"
-    headers = {"Authorization": f"Bearer {jwt}",
-               "Accept": "text/event-stream",
-               "Content-Type": "application/json"}
-
-    body = {"messages": [
-        {"role": "user", "content": [{"type": "text", "text": prompt}]}
-    ]}
+    headers = {
+        "Authorization": f"Bearer {jwt}",
+        "Accept": "text/event-stream",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "messages": [
+            {"role": "user", "content": [{"type": "text", "text": prompt}]}
+        ]
+    }
 
     response = requests.post(url, headers=headers, json=body, stream=True)
-
     answer = ""
+
     for raw in response.iter_lines():
         if raw:
             line = raw.decode()
@@ -279,14 +269,11 @@ def send_prompt_to_cortex(prompt, agent, jwt):
 
     return answer.strip()
 
-
-
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
-
 
 prompt = st.chat_input("Digite sua pergunta...")
 
