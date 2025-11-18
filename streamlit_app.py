@@ -93,7 +93,8 @@ if not st.session_state.logged_in:
                 "aj_logged_user",
                 username,
                 expires_at=expires,
-                secure=True
+                secure=True,
+                domain="ai.almeidajunior.com.br"
             )
 
             st.session_state.logged_in = True
