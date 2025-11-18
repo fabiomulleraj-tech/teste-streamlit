@@ -19,16 +19,16 @@ from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 
 
 # ---------------------------------------------------------
-# CONFIG STREAMLIT E COOKIE MANAGER (ANTES DE QUALQUER HTML)
+# ⚠️ 1. INICIALIZA APENAS O COOKIE MANAGER (SEM HTML)
 # ---------------------------------------------------------
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
 cookie_manager = stx.CookieManager(key="aj-cookie-key")
-cookie_manager   # obrigatório para inicializar o componente
+cookie_manager    # NÃO REMOVE — necessário para funcionar
 
 
 # ---------------------------------------------------------
-# SESSION STATE
+# ⚠️ 2. SESSION STATE
 # ---------------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -38,7 +38,7 @@ if "username" not in st.session_state:
 
 
 # ---------------------------------------------------------
-# ACTIVE DIRECTORY
+# ⚠️ 3. AUTENTICAÇÃO AD
 # ---------------------------------------------------------
 AD_SERVERS = [
     "ldaps://SRVADPRD.central.local:636",
@@ -47,10 +47,9 @@ AD_SERVERS = [
 
 def authenticate_ad(username, password):
     user_dn = f"CENTRAL\\{username}"
-
     tls = Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
-    last_error = ""
 
+    last_error = ""
     for srv in AD_SERVERS:
         try:
             server = Server(srv, use_ssl=True, get_info=ALL, tls=tls)
@@ -66,18 +65,20 @@ def authenticate_ad(username, password):
 
 
 # ---------------------------------------------------------
-# AUTENTICAÇÃO VIA COOKIE
+# ⚠️ 4. LOGIN AUTOMÁTICO VIA COOKIE
 # ---------------------------------------------------------
 saved_user = cookie_manager.get("aj_logged_user")
+
 if saved_user and not st.session_state.logged_in:
     st.session_state.logged_in = True
     st.session_state.username = saved_user
 
 
 # ---------------------------------------------------------
-# TELA DE LOGIN
+# ⚠️ 5. TELA DE LOGIN (NÃO EXIBIR NADA ANTES DISSO)
 # ---------------------------------------------------------
 if not st.session_state.logged_in:
+
     st.title("🔐 Login (Active Directory)")
 
     username = st.text_input("Usuário (sem domínio)")
@@ -86,7 +87,8 @@ if not st.session_state.logged_in:
     if st.button("Entrar"):
         if authenticate_ad(username, password):
 
-            expires = datetime.now() + timedelta(minutes=10)
+            expires = datetime.now() + timedelta(minutes=30)
+
             cookie_manager.set(
                 "aj_logged_user",
                 username,
@@ -97,19 +99,21 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.username = username
             st.rerun()
-
         else:
             st.error("❌ Usuário ou senha inválidos.")
 
     st.stop()
 
 
+# =====================================================================================
+# 🙌 DAQUI PARA BAIXO — PÁGINA NORMAL (AGORA SIM PODE RENDERIZAR HTML)
+# =====================================================================================
+
 # ---------------------------------------------------------
-# APÓS LOGIN — INTERFACE NORMAL
+# SIDEBAR
 # ---------------------------------------------------------
 st.sidebar.success(f"👤 Logado como: {st.session_state.username}")
 
-# LOGOUT
 if st.sidebar.button("Sair"):
     cookie_manager.delete("aj_logged_user")
     st.session_state.logged_in = False
@@ -117,12 +121,14 @@ if st.sidebar.button("Sair"):
     st.rerun()
 
 
-# DEBUG DO COOKIE (AGORA PODE MOSTRAR)
+# ---------------------------------------------------------
+# DEBUG DO COOKIE (AGORA PODE SER MOSTRADO)
+# ---------------------------------------------------------
 st.write("📌 Cookie detectado:", cookie_manager.get("aj_logged_user"))
 
 
 # ---------------------------------------------------------
-# CSS PERSONALIZADO
+# CSS GLOBAL
 # ---------------------------------------------------------
 st.markdown("""
 <style>
@@ -148,7 +154,7 @@ st.markdown("""
 
 
 # ---------------------------------------------------------
-# TÍTULO DO SISTEMA
+# TÍTULO DA APLICAÇÃO
 # ---------------------------------------------------------
 st.title("💁‍♂️ Pergunte ao Bentinho")
 st.caption("Não esqueça de selecionar o agente ao lado 👈")
@@ -161,37 +167,37 @@ ACCOUNT = "A6108453355571-ALMEIDAJR"
 USER = "TEAMS_INTEGRATION"
 
 AGENTS = {
-    "🏬 Vendas e Faturamento": {"agent": "AJ_VS", "semantic_model": "AJ_SEMANTIC_VIEW_VS"},
-    "📑 Contratos de Logistas": {"agent": "AJ_JURIDICO", "semantic_model": "AJ_SEMANTIC_JURIDICO"},
-    "🧾 Contratos de Fornecedores": {"agent": "AJ_PROTHEUS", "semantic_model": "AJ_SEMANTIC_PROTHEUS"},
+    "🏬 Vendas e Faturamento": {"agent": "AJ_VS"},
+    "📑 Contratos de Logistas": {"agent": "AJ_JURIDICO"},
+    "🧾 Contratos de Fornecedores": {"agent": "AJ_PROTHEUS"},
 }
 
+
 # ---------------------------------------------------------
-# JWT GENERATOR (igual ao Node.js)
+# JWT GENERATOR
 # ---------------------------------------------------------
 class JWTGenerator:
-    def __init__(self, account, user, key_path=None):
+    def __init__(self, account, user):
         self.account = account.upper()
         self.user = user.upper()
         self.qualified_username = f"{self.account}.{self.user}"
-        self.lifetime = 3600
-        self.renewal_delay = self.lifetime - 300
 
-        # chave privada via secrets
         key_text = st.secrets["rsa"]["private_key"].replace("\\n", "\n").strip()
         self.private_key = serialization.load_pem_private_key(
             key_text.encode(), password=None, backend=default_backend()
         )
 
-        self.public_fingerprint = self._calculate_public_key_fingerprint()
+        self.lifetime = 3600
+        self.renewal_delay = self.lifetime - 300
+        self.public_fingerprint = self._calc_fingerprint()
         self.generate_token()
 
-    def _calculate_public_key_fingerprint(self):
-        public_key = self.private_key.public_key()
-        der = public_key.public_bytes(serialization.Encoding.DER,
-                                      serialization.PublicFormat.SubjectPublicKeyInfo)
-        sha = hashlib.sha256(der).digest()
-        return "SHA256:" + base64.b64encode(sha).decode()
+    def _calc_fingerprint(self):
+        pub = self.private_key.public_key()
+        der = pub.public_bytes(serialization.Encoding.DER,
+                               serialization.PublicFormat.SubjectPublicKeyInfo)
+        fp = hashlib.sha256(der).digest()
+        return "SHA256:" + base64.b64encode(fp).decode()
 
     def generate_token(self):
         now = int(time.time())
@@ -201,19 +207,16 @@ class JWTGenerator:
             "iat": now,
             "exp": now + self.lifetime,
         }
-        headers = {"alg": "RS256", "typ": "JWT"}
+        header = {"alg": "RS256", "typ": "JWT"}
 
-        def b64(data):
-            return base64.urlsafe_b64encode(data).decode().rstrip("=")
+        def b64(d): return base64.urlsafe_b64encode(d).decode().rstrip("=")
 
-        header64 = b64(json.dumps(headers).encode())
-        payload64 = b64(json.dumps(payload).encode())
-        message = f"{header64}.{payload64}".encode()
+        h = b64(json.dumps(header).encode())
+        p = b64(json.dumps(payload).encode())
+        msg = f"{h}.{p}".encode()
 
-        signature = b64(self.private_key.sign(message,
-                                              padding.PKCS1v15(),
-                                              hashes.SHA256()))
-        self.token = f"{header64}.{payload64}.{signature}"
+        s = b64(self.private_key.sign(msg, padding.PKCS1v15(), hashes.SHA256()))
+        self.token = f"{h}.{p}.{s}"
         self.renew_time = now + self.renewal_delay
 
     def get_token(self):
@@ -223,7 +226,7 @@ class JWTGenerator:
 
 
 # ---------------------------------------------------------
-# INICIALIZAR JWT
+# INICIALIZA JWT
 # ---------------------------------------------------------
 if "jwt_gen" not in st.session_state:
     st.session_state.jwt_gen = JWTGenerator(ACCOUNT, USER)
@@ -233,7 +236,7 @@ jwt_token = jwt_gen.get_token()
 
 
 # ---------------------------------------------------------
-# SIDEBAR — Seleção de Agente
+# SIDEBAR — SELEÇÃO DE AGENTE
 # ---------------------------------------------------------
 st.sidebar.header("⚙️ Selecione o agente")
 selected_agent = st.sidebar.selectbox(
@@ -241,7 +244,43 @@ selected_agent = st.sidebar.selectbox(
     list(AGENTS.keys()),
     label_visibility="collapsed"
 )
+
 agent_name = AGENTS[selected_agent]["agent"]
+
+
+# ---------------------------------------------------------
+# STREAMING PARA O CORTEX
+# ---------------------------------------------------------
+def send_prompt_to_cortex(prompt, agent, jwt):
+    url = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents/{agent}:run"
+
+    headers = {
+        "Authorization": f"Bearer {jwt}",
+        "Accept": "text/event-stream",
+        "Content-Type": "application/json",
+    }
+
+    body = {
+        "messages": [
+            {"role": "user", "content": [{"type": "text", "text": prompt}]}
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=body, stream=True)
+
+    answer = ""
+    for raw in response.iter_lines():
+        if raw:
+            line = raw.decode()
+            if line.startswith("data: "):
+                try:
+                    data = json.loads(line[6:])
+                    if "text" in data:
+                        answer += data["text"]
+                except:
+                    pass
+
+    return answer.strip()
 
 
 # ---------------------------------------------------------
@@ -255,38 +294,8 @@ for msg in st.session_state.messages:
 
 
 # ---------------------------------------------------------
-# ENVIO DE PERGUNTA + STREAMING
+# INPUT DO USUÁRIO
 # ---------------------------------------------------------
-def send_prompt_to_cortex(prompt, agent, jwt):
-    url = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents/{agent}:run"
-
-    headers = {
-        "Authorization": f"Bearer {jwt}",
-        "Accept": "text/event-stream",
-        "Content-Type": "application/json",
-    }
-
-    body = {
-        "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
-    }
-
-    response = requests.post(url, headers=headers, json=body, stream=True)
-
-    answer = ""
-    for raw in response.iter_lines():
-        if not raw:
-            continue
-
-        line = raw.decode()
-
-        if line.startswith("data: "):
-            data = json.loads(line[6:])
-            if "text" in data:
-                answer += data["text"]
-
-    return answer.strip()
-
-
 prompt = st.chat_input("Digite sua pergunta...")
 
 if prompt:
