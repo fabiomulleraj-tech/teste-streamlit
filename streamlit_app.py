@@ -23,13 +23,6 @@ cookie_manager  # ⚠️ ISSO É OBRIGATÓRIO
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
 
-st.subheader("All Cookies:")
-cookies = cookie_manager.get_all()
-st.write(cookies)
-
-#st.session_state.setdefault("logged_in", False)
-#st.session_state.setdefault("username", None)
-
 # ---------------------------------------------------------
 # SESSION INITIALIZATION
 # ---------------------------------------------------------
