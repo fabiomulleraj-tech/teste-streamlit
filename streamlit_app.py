@@ -94,7 +94,8 @@ if not st.session_state.logged_in:
                 username,
                 expires_at=expires,
                 secure=True,
-                domain="ai.almeidajunior.com.br"
+                domain="ai.almeidajunior.com.br",
+                path="/"
             )
 
             st.session_state.logged_in = True
