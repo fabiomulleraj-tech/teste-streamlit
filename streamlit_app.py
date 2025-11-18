@@ -23,6 +23,17 @@ from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 # ---------------------------------------------------------
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
+if st.session_state.get("force_cookie"):
+    st.markdown(
+        """
+        <script>
+            document.cookie = "aj_logged_user=%s; path=/; domain=ai.almeidajunior.com.br; SameSite=None; Secure";
+        </script>
+        """ % st.session_state.username,
+        unsafe_allow_html=True
+    )
+    del st.session_state["force_cookie"]
+
 cookie_manager = stx.CookieManager(key="aj-cookie-key")
 cookie_manager    # NÃO REMOVE — necessário para funcionar
 
