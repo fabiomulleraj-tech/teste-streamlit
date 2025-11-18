@@ -17,11 +17,10 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 
-
-st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
-#@st.cache_resource(suppress_st_warning=True)
 cookie_manager = stx.CookieManager(key="aj-cookie-key")
 cookie_manager  # ⚠️ ISSO É OBRIGATÓRIO
+
+st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
 
 st.subheader("All Cookies:")
