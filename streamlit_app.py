@@ -207,13 +207,11 @@ class JWTGenerator:
         self.private_key = serialization.load_pem_private_key(
             self.private_key_pem, password=None, backend=default_backend()
         )
-        # st.sidebar.success("✅ Chave privada decodificada com sucesso.")
 
         # ---------------------------------------------------------
         # 2️⃣ Gera o fingerprint (SPKI DER → SHA256 Base64)
         # ---------------------------------------------------------
         self.public_fingerprint = self._calculate_public_key_fingerprint()
-        # st.sidebar.write(f"**Fingerprint:** `{self.public_fingerprint}`")
 
         # ---------------------------------------------------------
         # 3️⃣ Gera o primeiro JWT
@@ -258,22 +256,15 @@ class JWTGenerator:
         signature_b64 = b64url(signature)
         token = f"{header_b64}.{payload_b64}.{signature_b64}"
 
-        # Debug visual completo
-        #st.sidebar.write("### 🧩 JWT Debug")
-        #st.sidebar.write(f"**iss:** {payload['iss']}")
-        #st.sidebar.write(f"**sub:** {payload['sub']}")
-        #st.sidebar.text_area("🪪 Token JWT Gerado", token, height=150)
-
         self.token = token
         self.renew_time = now + self.renewal_delay
-        #st.sidebar.success("✅ JWT gerado com sucesso.")
+
         return token
 
     # ---------------------------------------------------------
     def get_token(self):
         now = int(time.time())
         if now >= self.renew_time:
-            #st.sidebar.warning("♻️ Renovando JWT...")
             self.generate_token()
         return self.token
 
@@ -423,9 +414,7 @@ agent_cfg = AGENTS[selected_agent]
 agent_name = agent_cfg["agent"]
 semantic_model = agent_cfg["semantic_model"]
 st.sidebar.markdown("---")
-#st.sidebar.write(f"**Usuário:** {USER}")
-#st.sidebar.write(f"**Conta:** {ACCOUNT}")
-#st.sidebar.write(f"**Renovação:** {time.strftime('%H:%M:%S', time.localtime(jwt_gen.renew_time))}")
+
 
 # ---------------------------------------------------------
 # HISTÓRICO DE CHAT
@@ -445,8 +434,6 @@ if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.chat_message("user", avatar="🤔").markdown(f"<div class='user_msg'>{prompt}</div>", unsafe_allow_html=True)
 
-    #with st.spinner(f"Agente de {selected_agent} pensando..."):
-    #    resposta = send_prompt_to_cortex(prompt, agent_name, jwt_token)
     status_placeholder = st.empty()
     status_placeholder.markdown(f"🧠 Agente **{selected_agent}** pensando...")
 
