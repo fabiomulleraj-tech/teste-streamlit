@@ -89,7 +89,7 @@ if not st.session_state.logged_in:
         if authenticate_ad(username, password):
             # cria cookie persistente
             expires = datetime.now() + timedelta(minutes=10)
-            cookie_manager.set("aj_logged_user", username, expires_at=expires)
+            cookie_manager.set("aj_logged_user", username, expires_at=expires, secure=True)
 
             st.session_state.logged_in = True
             st.session_state.username = username
