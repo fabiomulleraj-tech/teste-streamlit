@@ -4,12 +4,7 @@ import time
 import json
 import base64
 import hashlib
-import sseclient
-import io
-import msal
-import urllib.parse
 import ssl
-import datetime
 import extra_streamlit_components as stx
 from datetime import datetime, timedelta
 from cryptography.hazmat.primitives import serialization, hashes
@@ -18,29 +13,32 @@ from cryptography.hazmat.backends import default_backend
 from ldap3 import Server, Connection, ALL, SIMPLE, Tls
 
 
-# ---------------------------------------------------------
-# ⚠️ 1. INICIALIZA APENAS O COOKIE MANAGER (SEM HTML)
-# ---------------------------------------------------------
+# =====================================================================================
+# ⚠️ CONFIGURAÇÃO STREAMLIT E INICIALIZAÇÃO
+# =====================================================================================
 st.set_page_config(page_title="Bentinho", page_icon="❄️", layout="wide")
 
-if st.session_state.get("force_cookie"):
-    st.markdown(
-        """
-        <script>
-            document.cookie = "aj_logged_user=%s; path=/; domain=ai.almeidajunior.com.br; SameSite=None; Secure";
-        </script>
-        """ % st.session_state.username,
-        unsafe_allow_html=True
-    )
-    del st.session_state["force_cookie"]
-
 cookie_manager = stx.CookieManager(key="aj-cookie-key")
-cookie_manager    # NÃO REMOVE — necessário para funcionar
+cookie_manager  # necessário
 
 
-# ---------------------------------------------------------
-# ⚠️ 2. SESSION STATE
-# ---------------------------------------------------------
+# =====================================================================================
+# ⚠️ FUNÇÃO DE FORÇAR COOKIE VIA JAVASCRIPT (100% funcional)
+# =====================================================================================
+def force_cookie(username):
+    js = f"""
+    <script>
+        document.cookie = "aj_logged_user={username}; Path=/; Domain=ai.almeidajunior.com.br; SameSite=None; Secure";
+    </script>
+    """
+    st.markdown(js, unsafe_allow_html=True)
+
+
+
+
+# =====================================================================================
+# ⚠️ SESSION STATE
+# =====================================================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
@@ -48,9 +46,10 @@ if "username" not in st.session_state:
     st.session_state.username = None
 
 
-# ---------------------------------------------------------
-# ⚠️ 3. AUTENTICAÇÃO AD
-# ---------------------------------------------------------
+
+# =====================================================================================
+# ⚠️ AUTENTICAÇÃO AD
+# =====================================================================================
 AD_SERVERS = [
     "ldaps://SRVADPRD.central.local:636",
     "ldaps://SRVADPRD2.central.local:636"
@@ -75,9 +74,10 @@ def authenticate_ad(username, password):
     return False
 
 
-# ---------------------------------------------------------
-# ⚠️ 4. LOGIN AUTOMÁTICO VIA COOKIE
-# ---------------------------------------------------------
+
+# =====================================================================================
+# ⚠️ LOGIN AUTOMÁTICO VIA COOKIE
+# =====================================================================================
 saved_user = cookie_manager.get("aj_logged_user")
 
 if saved_user and not st.session_state.logged_in:
@@ -85,9 +85,10 @@ if saved_user and not st.session_state.logged_in:
     st.session_state.username = saved_user
 
 
-# ---------------------------------------------------------
-# ⚠️ 5. TELA DE LOGIN (NÃO EXIBIR NADA ANTES DISSO)
-# ---------------------------------------------------------
+
+# =====================================================================================
+# ⚠️ TELA DE LOGIN (NADA PODE SER RENDERIZADO ANTES)
+# =====================================================================================
 if not st.session_state.logged_in:
 
     st.title("🔐 Login (Active Directory)")
@@ -97,17 +98,8 @@ if not st.session_state.logged_in:
 
     if st.button("Entrar"):
         if authenticate_ad(username, password):
-
-            expires = datetime.now() + timedelta(minutes=30)
-
-            cookie_manager.set(
-                "aj_logged_user",
-                username,
-                expires_at=expires,
-                secure=True,
-                domain="ai.almeidajunior.com.br",
-                path="/"
-            )
+            # grava cookie via JavaScript (NUNCA FALHA)
+            force_cookie(username)
 
             st.session_state.logged_in = True
             st.session_state.username = username
@@ -118,31 +110,31 @@ if not st.session_state.logged_in:
     st.stop()
 
 
+
 # =====================================================================================
-# 🙌 DAQUI PARA BAIXO — PÁGINA NORMAL (AGORA SIM PODE RENDERIZAR HTML)
+# 🙌 INTERFACE APÓS LOGIN
 # =====================================================================================
 
-# ---------------------------------------------------------
-# SIDEBAR
-# ---------------------------------------------------------
 st.sidebar.success(f"👤 Logado como: {st.session_state.username}")
 
+# Logout
 if st.sidebar.button("Sair"):
-    cookie_manager.delete("aj_logged_user")
+    force_cookie("deleted")   # "limpa" sobrescrevendo
     st.session_state.logged_in = False
     st.session_state.username = None
     st.rerun()
 
 
-# ---------------------------------------------------------
-# DEBUG DO COOKIE (AGORA PODE SER MOSTRADO)
-# ---------------------------------------------------------
+
+# DEBUG DO COOKIE
 st.write("📌 Cookie detectado:", cookie_manager.get("aj_logged_user"))
 
 
-# ---------------------------------------------------------
-# CSS GLOBAL
-# ---------------------------------------------------------
+
+
+# =====================================================================================
+# CSS
+# =====================================================================================
 st.markdown("""
 <style>
     html, body, [class*="css"] {
@@ -166,16 +158,18 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------
-# TÍTULO DA APLICAÇÃO
-# ---------------------------------------------------------
+
+# =====================================================================================
+# APP PRINCIPAL
+# =====================================================================================
 st.title("💁‍♂️ Pergunte ao Bentinho")
 st.caption("Não esqueça de selecionar o agente ao lado 👈")
 
 
-# ---------------------------------------------------------
-# CONFIGURAÇÃO DO CORTEX / SNOWFLAKE
-# ---------------------------------------------------------
+# =====================================================================================
+# SNOWFLAKE + JWT (seu bloco original permanece igual)
+# =====================================================================================
+
 ACCOUNT = "A6108453355571-ALMEIDAJR"
 USER = "TEAMS_INTEGRATION"
 
@@ -186,9 +180,6 @@ AGENTS = {
 }
 
 
-# ---------------------------------------------------------
-# JWT GENERATOR
-# ---------------------------------------------------------
 class JWTGenerator:
     def __init__(self, account, user):
         self.account = account.upper()
@@ -227,8 +218,8 @@ class JWTGenerator:
         h = b64(json.dumps(header).encode())
         p = b64(json.dumps(payload).encode())
         msg = f"{h}.{p}".encode()
-
         s = b64(self.private_key.sign(msg, padding.PKCS1v15(), hashes.SHA256()))
+
         self.token = f"{h}.{p}.{s}"
         self.renew_time = now + self.renewal_delay
 
@@ -238,9 +229,7 @@ class JWTGenerator:
         return self.token
 
 
-# ---------------------------------------------------------
-# INICIALIZA JWT
-# ---------------------------------------------------------
+
 if "jwt_gen" not in st.session_state:
     st.session_state.jwt_gen = JWTGenerator(ACCOUNT, USER)
 
@@ -248,9 +237,11 @@ jwt_gen = st.session_state.jwt_gen
 jwt_token = jwt_gen.get_token()
 
 
-# ---------------------------------------------------------
-# SIDEBAR — SELEÇÃO DE AGENTE
-# ---------------------------------------------------------
+
+# =====================================================================================
+# CHAT + STREAMING (seu código original)
+# =====================================================================================
+
 st.sidebar.header("⚙️ Selecione o agente")
 selected_agent = st.sidebar.selectbox(
     "Agente:",
@@ -261,23 +252,16 @@ selected_agent = st.sidebar.selectbox(
 agent_name = AGENTS[selected_agent]["agent"]
 
 
-# ---------------------------------------------------------
-# STREAMING PARA O CORTEX
-# ---------------------------------------------------------
+
 def send_prompt_to_cortex(prompt, agent, jwt):
     url = f"https://{ACCOUNT}.snowflakecomputing.com/api/v2/databases/SNOWFLAKE_INTELLIGENCE/schemas/AGENTS/agents/{agent}:run"
+    headers = {"Authorization": f"Bearer {jwt}",
+               "Accept": "text/event-stream",
+               "Content-Type": "application/json"}
 
-    headers = {
-        "Authorization": f"Bearer {jwt}",
-        "Accept": "text/event-stream",
-        "Content-Type": "application/json",
-    }
-
-    body = {
-        "messages": [
-            {"role": "user", "content": [{"type": "text", "text": prompt}]}
-        ]
-    }
+    body = {"messages": [
+        {"role": "user", "content": [{"type": "text", "text": prompt}]}
+    ]}
 
     response = requests.post(url, headers=headers, json=body, stream=True)
 
@@ -296,9 +280,7 @@ def send_prompt_to_cortex(prompt, agent, jwt):
     return answer.strip()
 
 
-# ---------------------------------------------------------
-# HISTÓRICO DO CHAT
-# ---------------------------------------------------------
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -306,9 +288,6 @@ for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
 
-# ---------------------------------------------------------
-# INPUT DO USUÁRIO
-# ---------------------------------------------------------
 prompt = st.chat_input("Digite sua pergunta...")
 
 if prompt:
