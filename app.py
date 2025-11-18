@@ -4,7 +4,7 @@ import hashlib
 import os
 import time
 from ldap3 import Server, Connection, SIMPLE, Tls
-from streamlit_js_eval import streamlit_js_eval, get_local_storage, set_local_storage, remove_local_storage
+from streamlit_js_eval import streamlit_js_eval
 
 # ---------------------------------------------------------
 # CONFIG AD
@@ -26,26 +26,18 @@ TOKEN_RENEW_THRESHOLD = 5 * 86400  # renova token a cada 5 dias
 if "auth_tokens" not in st.session_state:
     st.session_state.auth_tokens = {}
 
-
 # ---------------------------------------------------------
-# AUTENTICAÇÃO AD
+# AD LOGIN
 # ---------------------------------------------------------
 def authenticate_ad(username, password):
     user_dn = f"{AD_DOMAIN}\\{username}"
-
     tls = Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
     last_error = None
 
     for srv in AD_SERVERS:
         try:
             server = Server(srv, use_ssl=True, tls=tls)
-            conn = Connection(
-                server,
-                user=user_dn,
-                password=password,
-                authentication=SIMPLE,
-                auto_bind=True
-            )
+            conn = Connection(server, user=user_dn, password=password, authentication=SIMPLE, auto_bind=True)
             conn.unbind()
             return True
 
@@ -56,19 +48,29 @@ def authenticate_ad(username, password):
     st.error(f"Erro AD: {last_error}")
     return False
 
-
 # ---------------------------------------------------------
-# IDENTIFICADOR DO NAVEGADOR
+# BROWSER FINGERPRINT
 # ---------------------------------------------------------
 def get_browser_id():
     ua = st.context.headers.get("User-Agent", "")
-    ip = st.context.headers.get("X-Forwarded-For", st.context.client.ip)
+    ip = st.context.client.ip
     raw = f"{ua}-{ip}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
+# ---------------------------------------------------------
+# TOKEN FUNCTIONS (LOCALSTORAGE)
+# ---------------------------------------------------------
+def ls_get(key):
+    return streamlit_js_eval(f"localStorage.getItem('{key}')", as_string=True)
+
+def ls_set(key, value):
+    streamlit_js_eval(f"localStorage.setItem('{key}', '{value}')")
+
+def ls_remove(key):
+    streamlit_js_eval(f"localStorage.removeItem('{key}')")
 
 # ---------------------------------------------------------
-# CRIA TOKEN SEGURO (persistente 90 dias)
+# CREATE TOKEN
 # ---------------------------------------------------------
 def create_token(username, browser_id):
     raw = f"{username}-{browser_id}-{os.urandom(32)}-{time.time()}"
@@ -81,13 +83,11 @@ def create_token(username, browser_id):
         "expires": time.time() + TOKEN_EXP_SECONDS
     }
 
-    set_local_storage(TOKEN_KEY, token)  # grava token no navegador
-
+    ls_set(TOKEN_KEY, token)
     return token
 
-
 # ---------------------------------------------------------
-# RENOVA TOKEN (sliding expiration)
+# RENEW TOKEN
 # ---------------------------------------------------------
 def renew_token_if_needed(token, browser_id):
     data = st.session_state.auth_tokens.get(token)
@@ -99,18 +99,15 @@ def renew_token_if_needed(token, browser_id):
         return token
 
     username = data["username"]
-
     new_token = create_token(username, browser_id)
     del st.session_state.auth_tokens[token]
     return new_token
 
-
 # ---------------------------------------------------------
-# LOGIN AUTOMÁTICO VIA localStorage
+# AUTO LOGIN
 # ---------------------------------------------------------
 def auto_login():
-    token = get_local_storage(TOKEN_KEY)
-
+    token = ls_get(TOKEN_KEY)
     if not token:
         return False
 
@@ -123,47 +120,45 @@ def auto_login():
 
     browser_id = get_browser_id()
     if data["browser"] != browser_id:
-        return False  # proteção contra roubo de token
+        return False
 
-    # RENOVA SE NECESSÁRIO
+    # renovar
     new_token = renew_token_if_needed(token, browser_id)
     if new_token != token:
-        set_local_storage(TOKEN_KEY, new_token)
+        ls_set(TOKEN_KEY, new_token)
 
     st.session_state.logged_in = True
     st.session_state.user = data["username"]
     return True
 
-
 # ---------------------------------------------------------
 # LOGOUT
 # ---------------------------------------------------------
 def logout():
-    token = get_local_storage(TOKEN_KEY)
+    token = ls_get(TOKEN_KEY)
 
     if token and token in st.session_state.auth_tokens:
         del st.session_state.auth_tokens[token]
 
-    remove_local_storage(TOKEN_KEY)
+    ls_remove(TOKEN_KEY)
     st.session_state.clear()
     st.rerun()
 
-
 # ---------------------------------------------------------
-# FLUXO DE LOGIN
+# LOGIN FLOW
 # ---------------------------------------------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-# 1 - tentar login automático
+# auto login
 if not st.session_state.logged_in:
     if auto_login():
-        st.success(f"🔓 Login automático como {st.session_state.user}")
+        st.success(f"🔓 Login automático: {st.session_state.user}")
         st.rerun()
 
-# 2 - login manual
+# manual login
 if not st.session_state.logged_in:
-    st.title("🔐 Login (Active Directory)")
+    st.title("🔐 Login AD")
 
     username = st.text_input("Usuário (sem domínio)")
     password = st.text_input("Senha", type="password")
@@ -172,23 +167,20 @@ if not st.session_state.logged_in:
         if authenticate_ad(username, password):
             st.session_state.logged_in = True
             st.session_state.user = username
-
             browser_id = get_browser_id()
             create_token(username, browser_id)
-
-            st.success("Login realizado com sucesso!")
+            st.success("Login efetuado!")
             st.rerun()
         else:
-            st.error("Usuário ou senha incorretos")
+            st.error("Usuário ou senha incorretos.")
 
     st.stop()
 
-
 # ---------------------------------------------------------
-# ÁREA AUTENTICADA
+# ÁREA LOGADA
 # ---------------------------------------------------------
-st.sidebar.success(f"👤 Usuário autenticado: {st.session_state.user}")
+st.sidebar.success(f"👤 {st.session_state.user}")
 st.sidebar.button("🚪 Sair", on_click=logout)
 
 st.title(f"Bem-vindo, {st.session_state.user}!")
-st.write("Sessão persistente 90 dias usando localStorage.")
+st.write("Sessão persistente de 90 dias com localStorage.")
