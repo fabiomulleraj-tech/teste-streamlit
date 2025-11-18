@@ -88,7 +88,7 @@ if not st.session_state.logged_in:
     if st.button("Entrar"):
         if authenticate_ad(username, password):
             # cria cookie persistente
-            expires = (datetime.now() + timedelta(minutes=10)).isoformat()
+            expires = datetime.now() + timedelta(minutes=10)
             cookie_manager.set("aj_logged_user", username, expires_at=expires)
 
             st.session_state.logged_in = True
