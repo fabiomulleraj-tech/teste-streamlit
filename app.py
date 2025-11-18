@@ -56,32 +56,41 @@ def get_user_dn(username):
 
 # ============= AUTENTICAÇÃO =============
 def authenticate(username, password):
+    st.warning("🔍 DEBUG: Iniciando busca no AD…")
+
     user_dn, user_upn = get_user_dn(username)
 
+    st.write(f"DN encontrado: {user_dn}")
+    st.write(f"UPN encontrado: {user_upn}")
+
     if not user_upn:
+        st.error("⚠ Usuário não encontrado no AD.")
         return False
 
-    # SIMPLE bind funciona com UPN e não exige MD4
     tls_config = Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
 
     for dc in AD_SERVERS:
+        st.info(f"Tentando autenticar no DC: {dc}")
+
         try:
             server = Server(dc, port=636, use_ssl=True, tls=tls_config)
 
             conn = Connection(
                 server,
-                user=user_upn,           # <---- ESSA É A MÁGICA
+                user=user_upn,
                 password=password,
                 authentication="SIMPLE",
                 auto_bind=True
             )
 
+            st.success(f"Autenticado com sucesso no DC {dc}")
             conn.unbind()
             return True
 
-        except:
-            continue
+        except Exception as e:
+            st.error(f"Erro no DC {dc}: {e}")
 
+    st.error("❌ TODOS os DCs recusaram a autenticação.")
     return False
 
 
