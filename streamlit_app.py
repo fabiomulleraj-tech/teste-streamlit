@@ -370,7 +370,7 @@ def send_prompt_to_cortex(prompt, agent, jwt):
             answer_buffer += delta
             #answer_box.markdown(answer_buffer)
 
-        # ---------------- TABELAS / GRÁFICOS ----------------
+         # ---------------- TABELA OU GRÁFICO GERADO PELO CORTEX ----------------
         elif current_event == "response.tool_result":
             try:
                 content = data.get("content", [])
@@ -379,7 +379,7 @@ def send_prompt_to_cortex(prompt, agent, jwt):
 
                 item = content[0].get("json", {})
 
-                # 🎯 TABELA (result_set)
+                # 🎯 TABELA
                 if "result_set" in item:
                     rows = item["result_set"]["data"]
                     cols = [c["name"] for c in item["result_set"]["resultSetMetaData"]["rowType"]]
@@ -394,7 +394,7 @@ def send_prompt_to_cortex(prompt, agent, jwt):
                         "type": "table"
                     })
 
-                # 🎯 GRÁFICO (charts)
+                # 🎯 GRÁFICO VEGA-LITE
                 if "charts" in item:
                     import json
                     chart_json = json.loads(item["charts"][0])
@@ -407,7 +407,7 @@ def send_prompt_to_cortex(prompt, agent, jwt):
                     })
 
             except Exception as e:
-                st.error(f"Erro processando tabela/gráfico: {e}")
+                st.error(f"Erro ao processar tabela/gráfico: {e}")
                 continue
 
         # ---------------- FINAL BLOCK ----------------
