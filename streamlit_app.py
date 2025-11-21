@@ -370,6 +370,46 @@ def send_prompt_to_cortex(prompt, agent, jwt):
             answer_buffer += delta
             #answer_box.markdown(answer_buffer)
 
+        # ---------------- TABELAS / GRÁFICOS ----------------
+        elif current_event == "response.tool_result":
+            try:
+                content = data.get("content", [])
+                if not content:
+                    continue
+
+                item = content[0].get("json", {})
+
+                # 🎯 TABELA (result_set)
+                if "result_set" in item:
+                    rows = item["result_set"]["data"]
+                    cols = [c["name"] for c in item["result_set"]["resultSetMetaData"]["rowType"]]
+
+                    import pandas as pd
+                    df = pd.DataFrame(rows, columns=cols)
+
+                    answer_box.dataframe(df)
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": df,
+                        "type": "table"
+                    })
+
+                # 🎯 GRÁFICO (charts)
+                if "charts" in item:
+                    import json
+                    chart_json = json.loads(item["charts"][0])
+
+                    answer_box.vega_lite_chart(chart_json)
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": chart_json,
+                        "type": "chart"
+                    })
+
+            except Exception as e:
+                st.error(f"Erro processando tabela/gráfico: {e}")
+                continue
+
         # ---------------- FINAL BLOCK ----------------
         elif current_event == "response":
             for block in data.get("content", []):
